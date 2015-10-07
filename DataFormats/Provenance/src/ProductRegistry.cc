@@ -15,6 +15,7 @@
 #include "FWCore/Utilities/interface/Algorithms.h"
 #include "FWCore/Utilities/interface/EDMException.h"
 #include "FWCore/Utilities/interface/DictionaryTools.h"
+#include "FWCore/Utilities/interface/TypeID.h"
 #include "FWCore/Utilities/interface/TypeWithDict.h"
 #include "FWCore/Utilities/interface/WrappedClassName.h"
 
@@ -28,10 +29,9 @@ namespace edm {
   namespace {
     void checkDicts(BranchDescription const& productDesc) {
       if(productDesc.transient()) {
-        checkDictionaries(productDesc.fullClassName(), true);
-        checkDictionaries(wrappedClassName(productDesc.fullClassName()), true);
+        checkClassDictionaries(TypeID(productDesc.wrappedType().typeInfo()), false);
       } else {
-        checkDictionaries(wrappedClassName(productDesc.fullClassName()), false);
+        checkClassDictionaries(TypeID(productDesc.wrappedType().typeInfo()), true);
       }
     }
   }
@@ -108,6 +108,8 @@ namespace edm {
     std::pair<ProductList::iterator, bool> ret =
          productList_.insert(std::make_pair(BranchKey(bd), bd));
     assert(ret.second);
+    transient_.aliasToOriginal_.emplace_back(labelAlias,
+                                             productDesc.moduleLabel());
     addCalled(bd, false);
   }
 
@@ -151,6 +153,7 @@ namespace edm {
     if(initializeLookupInfo) {
       initializeLookupTables();
     }
+    sort_all(transient_.aliasToOriginal_);
   }
 
   void
@@ -267,7 +270,9 @@ namespace edm {
 
   void ProductRegistry::initializeLookupTables() {
 
-    StringSet missingDicts;
+    std::map<TypeID, TypeID> containedTypeMap;
+    TypeSet missingDicts;
+
     transient_.branchIDToIndex_.clear();
     constProductList().clear();
 
@@ -283,16 +288,27 @@ namespace edm {
 
       //only do the following if the data is supposed to be available in the event
       if(desc.present()) {
-        TypeWithDict type(TypeWithDict::byName(desc.className()));
-        TypeWithDict wrappedType(TypeWithDict::byName(wrappedClassName(desc.className())));
-        if(!bool(type) || !bool(wrappedType)) {
-          missingDicts.insert(desc.className());
+        if(!bool(desc.unwrappedType())) {
+          missingDicts.insert(TypeID(desc.unwrappedType().typeInfo()));
+        } else if(!bool(desc.wrappedType())) {
+          missingDicts.insert(TypeID(desc.wrappedType().typeInfo()));
         } else {
+          TypeID wrappedTypeID(desc.wrappedType().typeInfo());
+          TypeID typeID(desc.unwrappedType().typeInfo());
+          TypeID containedTypeID;
+          auto const& iter = containedTypeMap.find(typeID);
+          if(iter != containedTypeMap.end()) {
+             containedTypeID = iter->second;
+          } else {
+             containedTypeID = productholderindexhelper::getContainedTypeFromWrapper(wrappedTypeID, typeID.className());
+             containedTypeMap.emplace(typeID, containedTypeID);
+          }
           ProductHolderIndex index =
-            productLookup(desc.branchType())->insert(type,
+            productLookup(desc.branchType())->insert(typeID,
                                                      desc.moduleLabel().c_str(),
                                                      desc.productInstanceName().c_str(),
-                                                     desc.processName().c_str());
+                                                     desc.processName().c_str(),
+                                                     containedTypeID);
 
           transient_.branchIDToIndex_[desc.branchID()] = index;
         }

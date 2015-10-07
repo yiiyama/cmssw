@@ -10,15 +10,15 @@
 #include "DataFormats/TrackReco/interface/Track.h"
 #include "DataFormats/TrackReco/interface/TrackExtra.h"
 
-#include "TrackingTools/PatternTools/interface/Trajectory.h"
-#include "TrackingTools/PatternTools/interface/TrajTrackAssociation.h"
-
 using namespace std;
 
 /*****************************************************************************/
 TrackListCombiner::TrackListCombiner(const edm::ParameterSet& ps)
 {
-  trackProducers = ps.getParameter<vector<string> >("trackProducers");
+  for(const std::string& prod: ps.getParameter<vector<string> >("trackProducers")) {
+    trackProducers.emplace_back(consumes<vector<Trajectory>>(prod),
+                                consumes<TrajTrackAssociationCollection>(prod));
+  }
 
   produces<reco::TrackCollection>();
   produces<reco::TrackExtraCollection>();
@@ -33,7 +33,7 @@ TrackListCombiner::~TrackListCombiner()
 }
 
 /*****************************************************************************/
-void TrackListCombiner::produce(edm::Event& ev, const edm::EventSetup& es)
+void TrackListCombiner::produce(edm::StreamID, edm::Event& ev, const edm::EventSetup& es) const
 {
   auto_ptr<reco::TrackCollection>          recoTracks
       (new reco::TrackCollection);
@@ -51,28 +51,33 @@ void TrackListCombiner::produce(edm::Event& ev, const edm::EventSetup& es)
 
   // Go through all track producers
   int i = 1;
-  for(vector<string>::iterator trackProducer = trackProducers.begin();
-                               trackProducer!= trackProducers.end();
-                               trackProducer++, i++)
+  for(auto trackProducer = trackProducers.begin();
+                           trackProducer!= trackProducers.end();
+                           trackProducer++, i++)
   {
     reco::TrackBase::TrackAlgorithm algo;
     switch(i) 
     {
-      case 1:  algo = reco::TrackBase::iter1; break;
-      case 2:  algo = reco::TrackBase::iter2; break;
-      case 3:  algo = reco::TrackBase::iter3; break;
+      case 1:  algo = reco::TrackBase::lowPtTripletStep; break;
+      case 2:  algo = reco::TrackBase::pixelPairStep; break;
+      case 3:  algo = reco::TrackBase::detachedTripletStep; break;
       default: algo = reco::TrackBase::undefAlgorithm;
     }
 
     edm::Handle<vector<Trajectory> > theTrajectoryCollection;
     edm::Handle<TrajTrackAssociationCollection> theAssoMap;  
 
-    ev.getByLabel(*trackProducer, theTrajectoryCollection);
-    ev.getByLabel(*trackProducer, theAssoMap);
+    ev.getByToken(trackProducer->trajectory, theTrajectoryCollection);
+    ev.getByToken(trackProducer->assoMap, theAssoMap);
+
+#ifdef EDM_ML_DEBUG
+    edm::EDConsumerBase::Labels labels;
+    labelsForToken(trackProducer->trajectory_, labels);
 
     LogTrace("MinBiasTracking")
-      << " [TrackListCombiner] " << *trackProducer
+      << " [TrackListCombiner] " << labels.module
       << " : " << theAssoMap->size();
+#endif
 
     
     // The track collection iterators
@@ -116,6 +121,7 @@ void TrackListCombiner::produce(edm::Event& ev, const edm::EventSetup& es)
   // Save the tracking recHits
   edm::OrphanHandle<TrackingRecHitCollection> theRecoHits = ev.put(recoHits);
   
+  edm::RefProd<TrackingRecHitCollection> theRecoHitsProd(theRecoHits);
   // Create the track extras and add the references to the rechits
   unsigned hits = 0;
   unsigned nTracks = recoTracks->size();
@@ -137,8 +143,9 @@ void TrackListCombiner::produce(edm::Event& ev, const edm::EventSetup& es)
                                  aTrack.seedRef());
     
     unsigned nHits = aTrack.recHitsSize();
-    for ( unsigned int ih=0; ih<nHits; ++ih)
-      aTrackExtra.add(TrackingRecHitRef(theRecoHits,hits++));
+    aTrackExtra.setHits(theRecoHitsProd,hits,nHits);
+    hits +=nHits;
+
     recoTrackExtras->push_back(aTrackExtra);
   }
   

@@ -1,25 +1,44 @@
+// Stage1Layer2SingleTrackHI.cc
+// Authors: Michael Northup
+//          Alex Barbieri
+//
+// This is a special-purpose single-track seed trigger which uses the
+// Tau channel to communicate with GT. Be wary of any naming scheme
+// because we are masquerading as both a tau and track trigger when
+// we are really just looking for the hottest region.
+
+
 #include "L1Trigger/L1TCalorimeter/interface/Stage1Layer2TauAlgorithmImp.h"
 #include "DataFormats/L1CaloTrigger/interface/L1CaloRegionDetId.h"
 
 #include "L1Trigger/L1TCalorimeter/interface/PUSubtractionMethods.h"
+#include "L1Trigger/L1TCalorimeter/interface/legacyGtHelper.h"
 
-l1t::Stage1Layer2SingleTrackHI::Stage1Layer2SingleTrackHI() {}
+l1t::Stage1Layer2SingleTrackHI::Stage1Layer2SingleTrackHI(CaloParamsStage1* params) : params_(params) {}
 
 l1t::Stage1Layer2SingleTrackHI::~Stage1Layer2SingleTrackHI(){};
 
 void findRegions(const std::vector<l1t::CaloRegion> * sr, std::vector<l1t::Tau> * t);
 
-void l1t::Stage1Layer2SingleTrackHI::processEvent(/*const std::vector<l1t::CaloStage1> & clusters,*/
-  const std::vector<l1t::CaloEmCand> & clusters,
-  const std::vector<l1t::CaloRegion> & regions,
-  const std::vector<l1t::Jet> * jets,
-  std::vector<l1t::Tau> * taus)
+void l1t::Stage1Layer2SingleTrackHI::processEvent(const std::vector<l1t::CaloEmCand> & clusters,
+						  const std::vector<l1t::CaloRegion> & regions,
+						  std::vector<l1t::Tau> * isoTaus,
+						  std::vector<l1t::Tau> * taus)
 {
-	std::vector<l1t::CaloRegion> *subRegions = new std::vector<l1t::CaloRegion>();
-  	HICaloRingSubtraction(regions, subRegions);
-        findRegions(subRegions, taus);
+  std::string regionPUSType = params_->regionPUSType();
+  std::vector<double> regionPUSParams = params_->regionPUSParams();
 
-	delete subRegions;
+  std::vector<l1t::CaloRegion> *subRegions = new std::vector<l1t::CaloRegion>();
+  std::vector<l1t::Tau> *preGtEtaTaus = new std::vector<l1t::Tau>();
+  std::vector<l1t::Tau> *preGtTaus = new std::vector<l1t::Tau>();
+
+  HICaloRingSubtraction(regions, subRegions, regionPUSParams, regionPUSType);
+  findRegions(subRegions, preGtEtaTaus);
+  TauToGtEtaScales(params_, preGtEtaTaus, preGtTaus);
+  TauToGtPtScales(params_, preGtTaus, taus);
+
+  delete subRegions;
+  delete preGtTaus;
 }
 
 void findRegions(const std::vector<l1t::CaloRegion> * sr, std::vector<l1t::Tau> * t)
@@ -31,6 +50,7 @@ void findRegions(const std::vector<l1t::CaloRegion> * sr, std::vector<l1t::Tau> 
   for(std::vector<l1t::CaloRegion>::const_iterator region = sr->begin(); region != sr->end(); region++)
   {
     int regionET = region->hwPt();
+    if((region->hwEta() < 8) || (region->hwEta() > 13)) continue;
     if (regionET > regionETMax)
     {
       regionETMax = regionET;
@@ -38,9 +58,9 @@ void findRegions(const std::vector<l1t::CaloRegion> * sr, std::vector<l1t::Tau> 
       regionETMaxPhi = region->hwPhi();
     }
   }
-  ROOT::Math::LorentzVector<ROOT::Math::PxPyPzE4D<double> > *TauLorentz
-    = new ROOT::Math::LorentzVector<ROOT::Math::PxPyPzE4D<double> >();
-  l1t::Tau taucand(*TauLorentz,regionETMax,regionETMaxEta,regionETMaxPhi);
+
+  ROOT::Math::LorentzVector<ROOT::Math::PxPyPzE4D<double> > TauLorentz(0,0,0,0);
+  l1t::Tau taucand(*&TauLorentz,regionETMax,regionETMaxEta,regionETMaxPhi);
 
   //don't push a taucand we didn't actually find
   if(taucand.hwPt() > 0)

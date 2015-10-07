@@ -17,7 +17,7 @@ MessageLogger = cms.Service("MessageLogger",
 process.MessageLogger.cerr.FwkReport.reportEvery = 100
 
 process.load('Configuration.StandardSequences.Services_cff')
-process.load('Configuration.StandardSequences.Geometry_cff')
+process.load("Configuration.Geometry.GeometryDB_cff")
 
 # including global tag
 process.load("Configuration.StandardSequences.FrontierConditions_GlobalTag_cff")
@@ -63,7 +63,7 @@ process.load("RecoTracker.TrackProducer.TrackRefitters_cff")
 
 
 # magnetic field
-process.load("Configuration.StandardSequences.MagneticField_AutoFromDBCurrent_cff")
+process.load("Configuration.StandardSequences..oO[magneticField]Oo._cff")
 
 # adding geometries
 from CondCore.DBCommon.CondDBSetup_cfi import *
@@ -98,7 +98,6 @@ process.AlignmentTrackSelector.etaMin  = -9999.
 process.AlignmentTrackSelector.etaMax  = 9999.
 process.AlignmentTrackSelector.nHitMin = 10
 process.AlignmentTrackSelector.nHitMin2D = 2
-process.AlignmentTrackSelector.minHitsPerSubDet.inBPIX=4 ##skip tracks not passing the pixel
 process.AlignmentTrackSelector.chi2nMax = 9999.
 process.AlignmentTrackSelector.applyMultiplicityFilter = True
 process.AlignmentTrackSelector.maxMultiplicity = 1
@@ -109,7 +108,7 @@ process.AlignmentTrackSelector.applyIsolationCut = False
 process.AlignmentTrackSelector.minHitIsolation = 0.8
 process.AlignmentTrackSelector.applyChargeCheck = False
 process.AlignmentTrackSelector.minHitChargeStrip = 50.
-process.AlignmentTrackSelector.minHitsPerSubDet.inBPIX = 2
+process.AlignmentTrackSelector.minHitsPerSubDet.in.oO[subdetector]Oo. = 2
 #process.AlignmentTrackSelector.trackQualities = ["highPurity"]
 #process.AlignmentTrackSelector.iterativeTrackingSteps = ["iter1","iter2"]
 process.KFFittingSmootherWithOutliersRejectionAndRK.EstimateCut=30.0
@@ -131,7 +130,8 @@ process.load("RecoTracker.TrackProducer.CTFFinalFitWithMaterialP5_cff")
 process.HitFilteredTracks = RecoTracker.TrackProducer.CTFFinalFitWithMaterialP5_cff.ctfWithMaterialTracksCosmics.clone(
      src = 'cosmicTrackSplitter',
      TrajectoryInEvent = True,
-     TTRHBuilder = "WithTrackAngle"
+     TTRHBuilder = "WithTrackAngle",
+     NavigationSchool = ""
 )
 # second refit
 process.TrackRefitter2 = process.TrackRefitter1.clone(
@@ -140,7 +140,9 @@ process.TrackRefitter2 = process.TrackRefitter1.clone(
 
 ### Now adding the construction of global Muons
 # what Chang did...
-process.load("Configuration.StandardSequences.ReconstructionCosmics_cff")
+#   In 74X it no longer works if ReconstructionCosmics is imported
+#   Results in 73X are identical with or without it so it seems safe to remove
+#process.load("Configuration.StandardSequences.ReconstructionCosmics_cff")
 
 process.cosmicValidation = cms.EDAnalyzer("CosmicSplitterValidation",
 	ifSplitMuons = cms.bool(False),
@@ -157,5 +159,121 @@ process.TFileService = cms.Service("TFileService",
 )
 
 process.p = cms.Path(process.offlineBeamSpot*process.TrackRefitter1*process.AlignmentTrackSelector*process.cosmicTrackSplitter*process.HitFilteredTracks*process.TrackRefitter2*process.cosmicValidation)
+"""
+
+
+######################################################################
+######################################################################
+
+trackSplitPlotExecution="""
+#make track splitting plots
+
+rfcp .oO[trackSplitPlotScriptPath]Oo. .
+root -x -b -q TkAlTrackSplitPlot.C++
+
+"""
+
+######################################################################
+######################################################################
+
+trackSplitPlotTemplate="""
+#include ".oO[CMSSW_BASE]Oo./src/Alignment/OfflineValidation/macros/trackSplitPlot.C"
+
+/****************************************
+This can be run directly in root, or you
+ can run ./TkAlMerge.sh in this directory
+It can be run as is, or adjusted to fit
+ for misalignments or to only make
+ certain plots
+****************************************/
+
+/********************************
+To make ALL plots (313 in total):
+  leave this file as is
+********************************/
+
+/**************************************************************************
+to make all plots involving a single x or y variable, or both:
+Uncomment the line marked (B), and fill in for xvar and yvar
+
+Examples:
+
+   xvar = "nHits", yvar = "ptrel" - makes plots of nHits vs Delta_pt/pt_org
+                                    (4 total - profile and resolution,
+                                     of Delta_pt/pt_org and its pull
+                                     distribution)
+   xvar = "all",   yvar = "pt"    - makes all plots involving Delta_pt
+                                    (not Delta_pt/pt_org)
+                                    (38 plots total:
+                                     histogram and pull distribution, and
+                                     their mean and width as a function
+                                     of the 9 x variables)
+   xvar = "",      yvar = "all"   - makes all histograms of all y variables
+                                    (including Delta_pt/pt_org)
+                                    (16 plots total - 8 y variables,
+                                     regular and pull histograms)
+**************************************************************************/
+
+/**************************************************************************************
+To make a custom selection of plots:
+Uncomment the lines marked (C) and this section, and fill in matrix however you want */
+
+/*
+Bool_t plotmatrix[xsize][ysize];
+void fillmatrix()
+{
+    for (int x = 0; x < xsize; x++)
+        for (int y = 0; y < ysize; y++)
+            plotmatrix[x][y] = (.............................);
+}
+*/
+
+/*
+The variables are defined in Alignment/OfflineValidation/macros/trackSplitPlot.h
+ as follows:
+TString xvariables[xsize]      = {"", "pt", "eta", "phi", "dz",  "dxy", "theta",
+                                  "qoverpt", "runNumber", "nHits"};
+
+TString yvariables[ysize]      = {"pt", "pt",  "eta", "phi", "dz",  "dxy", "theta",
+                                  "qoverpt", ""};
+Bool_t relativearray[ysize]    = {true, false, false, false, false, false, false,
+                                  false,     false};
+Use matrix[x][y] = true to make that plot, and false not to make it.
+**************************************************************************************/
+
+/*************************************************************************************
+To fit for a misalignment, which can be combined with any other option:
+Uncomment the line marked (A) and this section, and choose your misalignment        */
+
+/*
+TString misalignment = "choose one";
+double *values = 0;
+double *phases = 0;
+//or:
+//    double values[number of files] = {...};
+//    double phases[number of files] = {...};
+*/
+
+/*
+The options for misalignment are sagitta, elliptical, skew, telescope, or layerRot.
+If the magnitude and phase of the misalignment are known (i.e. Monte Carlo data using
+ a geometry produced by the systematic misalignment tool), make values and phases into
+ arrays, with one entry for each file, to make a plot of the result of the fit vs. the
+ misalignment value.
+phases must be filled in for sagitta, elliptical, and skew if values is;
+ for the others it has no effect
+*************************************************************************************/
+
+void TkAlTrackSplitPlot()
+{
+    //fillmatrix();                                                         //(C)
+    makePlots(
+              ".oO[trackSplitPlotInstantiation]Oo.",
+              //misalignment,values,phases,                                 //(A)
+              ".oO[datadir]Oo./TrackSplittingPlots"
+              //,"xvar","yvar"                                              //(B)
+              //,plotmatrix                                                 //(C)
+             );
+}
 """
 

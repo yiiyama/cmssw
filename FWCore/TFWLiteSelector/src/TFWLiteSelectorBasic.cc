@@ -33,6 +33,7 @@
 #include "DataFormats/Provenance/interface/ProcessHistoryRegistry.h"
 #include "DataFormats/Provenance/interface/ProductRegistry.h"
 #include "DataFormats/Provenance/interface/RunAuxiliary.h"
+#include "DataFormats/Provenance/interface/ThinnedAssociationsHelper.h"
 #include "FWCore/Framework/interface/DelayedReader.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/EventPrincipal.h"
@@ -50,7 +51,11 @@
 #include "TChain.h"
 #include "TFile.h"
 #include "TTree.h"
-#include "Reflex/Type.h"
+
+#include <iostream>
+#include <memory>
+#include <string>
+#include <vector>
 
 namespace edm {
   namespace root {
@@ -94,23 +99,23 @@ namespace edm {
       }
       //find the class type
       std::string const fullName = wrappedClassName(bDesc.className());
-      Reflex::Type classType = Reflex::Type::ByName(fullName);
-      if(classType == Reflex::Type()) {
+      TypeWithDict classType = TypeWithDict::byName(fullName);
+      if(!bool(classType)) {
         throw cms::Exception("MissingDictionary")
         << "could not find dictionary for type '" << fullName << "'"
         << "\n Please make sure all the necessary libraries are available.";
       }
 
       //create an instance of it
-      Reflex::Object wrapperObj = classType.Construct();
-      if(nullptr == wrapperObj.Address()) {
+      ObjectWithDict wrapperObj = classType.construct();
+      if(nullptr == wrapperObj.address()) {
         throw cms::Exception("FailedToCreate") << "could not create an instance of '" << fullName << "'";
       }
-      void* address = wrapperObj.Address();
+      void* address = wrapperObj.address();
       branch->SetAddress(&address);
-      Reflex::Object edProdObj = wrapperObj.CastObject(Reflex::Type::ByName("edm::WrapperBase"));
+      ObjectWithDict edProdObj = wrapperObj.castObject(TypeWithDict::byName("edm::WrapperBase"));
 
-      WrapperBase* prod = reinterpret_cast<WrapperBase*>(edProdObj.Address()); 	 
+      WrapperBase* prod = reinterpret_cast<WrapperBase*>(edProdObj.address()); 	 
 	  	 
       if(nullptr == prod) { 	 
         throw cms::Exception("FailedConversion") 	 
@@ -128,6 +133,13 @@ namespace edm {
       reg_(new ProductRegistry()),
       phreg_(new ProcessHistoryRegistry()),
       branchIDListHelper_(new BranchIDListHelper()),
+      // Note that thinned collections are not supported yet, the next
+      // line just makes it compile but when the Ref or Ptr tries to
+      // find the thinned collection it will report them not found.
+      // More work needed here if this is needed (we think no one
+      // is using TFWLiteSelector anymore and intend to implement
+      // this properly if it turns out we are wrong)
+      thinnedAssociationsHelper_(new ThinnedAssociationsHelper()),
       processNames_(),
       reader_(new FWLiteDelayedReader),
       prov_(),
@@ -143,6 +155,7 @@ namespace edm {
       std::shared_ptr<ProductRegistry> reg_;
       std::shared_ptr<ProcessHistoryRegistry> phreg_;
       std::shared_ptr<BranchIDListHelper> branchIDListHelper_;
+      std::shared_ptr<ThinnedAssociationsHelper> thinnedAssociationsHelper_;
       ProcessHistory processNames_;
       std::shared_ptr<FWLiteDelayedReader> reader_;
       std::vector<EventEntryDescription> prov_;
@@ -466,7 +479,7 @@ TFWLiteSelectorBasic::setupNewFile(TFile& iFile) {
   }
   m_->branchIDListHelper_->updateFromInput(*branchIDListsPtr);
   m_->reg_->setFrozen();
-  m_->ep_.reset(new edm::EventPrincipal(m_->reg_, m_->branchIDListHelper_, m_->pc_, nullptr));
+  m_->ep_.reset(new edm::EventPrincipal(m_->reg_, m_->branchIDListHelper_, m_->thinnedAssociationsHelper_, m_->pc_, nullptr));
   everythingOK_ = true;
 }
 

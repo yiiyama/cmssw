@@ -38,10 +38,8 @@ from FastSimulation.Tracking.GlobalPixelTracking_cff import *
 import FastSimulation.Tracking.TrackCandidateProducer_cfi
 
 hltCkfL1SeededLargeWindowTrackCandidates = FastSimulation.Tracking.TrackCandidateProducer_cfi.trackCandidateProducer.clone()
-hltCkfL1SeededLargeWindowTrackCandidates.SeedProducer = cms.InputTag("hltL1SeededLargeWindowElectronPixelSeeds")
+hltCkfL1SeededLargeWindowTrackCandidates.src = cms.InputTag("hltL1SeededLargeWindowElectronPixelSeeds")
 hltCkfL1SeededLargeWindowTrackCandidates.TrackProducers = cms.VInputTag(cms.InputTag("hltCtfL1SeededWithMaterialTracks"))
-hltCkfL1SeededLargeWindowTrackCandidates.MaxNumberOfCrossedLayers = 999
-hltCkfL1SeededLargeWindowTrackCandidates.SeedCleaning = True
 hltCkfL1SeededLargeWindowTrackCandidates.SplitHits = False
 
 
@@ -54,17 +52,9 @@ ctfL1SeededLargeWindowTracks.TTRHBuilder = 'WithoutRefit'
 ctfL1SeededLargeWindowTracks.Fitter = 'KFFittingSmootherForElectrons'
 ctfL1SeededLargeWindowTracks.Propagator = 'PropagatorWithMaterial'
 
-# Track merger
-hltCtfL1SeededLargeWindowWithMaterialTracks = cms.EDProducer("FastTrackMerger",
-    SaveTracksOnly = cms.untracked.bool(True),
-    TrackProducers = cms.VInputTag(cms.InputTag("ctfL1SeededLargeWindowTracks"),
-                                   cms.InputTag("hltCtfL1SeededWithMaterialTracks"))
-)
-
 # Sequence
 HLTPixelMatchLargeWindowElectronL1SeededTrackingSequence = cms.Sequence(hltCkfL1SeededLargeWindowTrackCandidates+
                                                                         ctfL1SeededLargeWindowTracks+
-                                                                        hltCtfL1SeededLargeWindowWithMaterialTracks+
                                                                         cms.SequencePlaceholder("hltPixelMatchLargeWindowElectronsL1Seeded"))
 
 hltL1SeededLargeWindowElectronPixelSeedsSequence = cms.Sequence(globalPixelTracking+

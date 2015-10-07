@@ -6,6 +6,7 @@
 #include "DataFormats/HcalDigi/interface/HcalDigiCollections.h"
 #include "CalibFormats/HcalObjects/interface/HcalDbService.h"
 #include "CalibFormats/HcalObjects/interface/HcalDbRecord.h"
+#include "Geometry/CaloTopology/interface/HcalTopology.h"
 
 /** \class HcalCoarsePedestalMonitor
   *  
@@ -18,9 +19,8 @@ public:
   HcalCoarsePedestalMonitor(const edm::ParameterSet& ps); 
   ~HcalCoarsePedestalMonitor(); 
 
-  void setup();
-  void beginRun(const edm::Run& run, const edm::EventSetup& c);
-  void cleanup();
+  void setup(DQMStore::IBooker &);
+  void bookHistograms(DQMStore::IBooker &ib, const edm::Run& run, const edm::EventSetup& c);
 
   void analyze(const edm::Event& e, const edm::EventSetup& c);
 
@@ -28,7 +28,6 @@ public:
 		    const HODigiCollection& ho,
 		    const HFDigiCollection& hf,
 		    const HcalUnpackerReport& report);
-
 
   // Begin LumiBlock
   void beginLuminosityBlock(const edm::LuminosityBlock& lumiSeg,
@@ -45,7 +44,7 @@ public:
 
 private:  ///Methods, variables accessible only within class code
  
-  void fill_Nevents();
+  void fill_Nevents(const HcalTopology&);
   void zeroCounters();
 
   // Store sum of pedestal values over all events

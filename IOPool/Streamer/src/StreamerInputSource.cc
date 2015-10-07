@@ -14,6 +14,7 @@
 #include "DataFormats/Provenance/interface/EventSelectionID.h"
 #include "DataFormats/Provenance/interface/BranchIDListHelper.h"
 #include "DataFormats/Provenance/interface/BranchListIndex.h"
+#include "DataFormats/Provenance/interface/ThinnedAssociationsHelper.h"
 
 #include "zlib.h"
 
@@ -61,7 +62,11 @@ namespace edm {
   }
 
   void
-  StreamerInputSource::mergeIntoRegistry(SendJobHeader const& header, ProductRegistry& reg, BranchIDListHelper& branchIDListHelper, bool subsequent) {
+  StreamerInputSource::mergeIntoRegistry(SendJobHeader const& header,
+                                         ProductRegistry& reg,
+                                         BranchIDListHelper& branchIDListHelper,
+                                         ThinnedAssociationsHelper& thinnedHelper,
+                                         bool subsequent) {
 
     SendDescs const& descs = header.descs();
 
@@ -75,6 +80,7 @@ namespace edm {
         throw cms::Exception("MismatchedInput","RootInputFileSequence::previousEvent()") << mergeInfo;
       }
       branchIDListHelper.updateFromInput(header.branchIDLists());
+      thinnedHelper.updateFromInput(header.thinnedAssociationsHelper(), false, std::vector<BranchID>());
     } else {
       declareStreamers(descs);
       buildClassCache(descs);
@@ -83,6 +89,7 @@ namespace edm {
         reg.updateFromInput(descs);
       }
       branchIDListHelper.updateFromInput(header.branchIDLists());
+      thinnedHelper.updateFromInput(header.thinnedAssociationsHelper(), false, std::vector<BranchID>());
     }
   }
 
@@ -163,7 +170,7 @@ namespace edm {
   void
   StreamerInputSource::deserializeAndMergeWithRegistry(InitMsgView const& initView, bool subsequent) {
      std::auto_ptr<SendJobHeader> sd = deserializeRegistry(initView);
-     mergeIntoRegistry(*sd, productRegistryUpdate(), *branchIDListHelper(), subsequent);
+     mergeIntoRegistry(*sd, productRegistryUpdate(), *branchIDListHelper(), *thinnedAssociationsHelper(), subsequent);
      if (subsequent) {
        adjustEventToNewProductRegistry_ = true;
      }
@@ -229,7 +236,13 @@ namespace edm {
     xbuf_.SetBuffer(&dest_[0],dest_size,kFALSE);
     RootDebug tracer(10,10);
 
-    setRefCoreStreamer(&eventPrincipalHolder_);
+    //We do not yet know which EventPrincipal we will use, therefore
+    // we are using a new EventPrincipalHolder as a proxy. We need to
+    // make a new one instead of reusing the same one becuase when running
+    // multi-threaded there will be multiple EventPrincipals being used
+    // simultaneously.
+    eventPrincipalHolder_.reset( new EventPrincipalHolder() );
+    setRefCoreStreamer(eventPrincipalHolder_.get());
     sendEvent_ = std::unique_ptr<SendEvent>((SendEvent*)xbuf_.ReadObjectAny(tc_));
     setRefCoreStreamer();
 
@@ -237,7 +250,7 @@ namespace edm {
         throw cms::Exception("StreamTranslation","Event deserialization error")
           << "got a null event from input stream\n";
     }
-    processHistoryRegistryUpdate().registerProcessHistory(sendEvent_->processHistory());
+    processHistoryRegistryForUpdate().registerProcessHistory(sendEvent_->processHistory());
 
     FDEBUG(5) << "Got event: " << sendEvent_->aux().id() << " " << sendEvent_->products().size() << std::endl;
     if(runAuxiliary().get() == nullptr || runAuxiliary()->run() != sendEvent_->aux().run()) {
@@ -267,7 +280,14 @@ namespace edm {
     BranchListIndexes indexes(sendEvent_->branchListIndexes());
     branchIDListHelper()->fixBranchListIndexes(indexes);
     eventPrincipal.fillEventPrincipal(sendEvent_->aux(), processHistoryRegistry(), std::move(ids), std::move(indexes));
-    eventPrincipalHolder_.setEventPrincipal(&eventPrincipal);
+
+    //We now know which eventPrincipal to use and we can reuse the slot in
+    // streamToEventPrincipalHolders to own the memory
+    eventPrincipalHolder_->setEventPrincipal(&eventPrincipal);
+    if(streamToEventPrincipalHolders_.size() < eventPrincipal.streamID().value() +1) {
+      streamToEventPrincipalHolders_.resize(eventPrincipal.streamID().value() +1);
+    }
+    streamToEventPrincipalHolders_[eventPrincipal.streamID().value()] = std::move(eventPrincipalHolder_);
 
     // no process name list handling
 
@@ -371,6 +391,19 @@ namespace edm {
   StreamerInputSource::EventPrincipalHolder::getIt(ProductID const& id) const {
     return eventPrincipal_ ? eventPrincipal_->getIt(id) : nullptr;
   }
+
+  WrapperBase const*
+  StreamerInputSource::EventPrincipalHolder::getThinnedProduct(edm::ProductID const& id, unsigned int& index) const {
+    return eventPrincipal_ ? eventPrincipal_->getThinnedProduct(id, index) : nullptr;
+  }
+
+  void
+  StreamerInputSource::EventPrincipalHolder::getThinnedProducts(ProductID const& pid,
+                                                                std::vector<WrapperBase const*>& wrappers,
+                                                                std::vector<unsigned int>& keys) const {
+    if (eventPrincipal_) eventPrincipal_->getThinnedProducts(pid, wrappers, keys);
+  }
+
 
   unsigned int
   StreamerInputSource::EventPrincipalHolder::transitionIndex_() const {

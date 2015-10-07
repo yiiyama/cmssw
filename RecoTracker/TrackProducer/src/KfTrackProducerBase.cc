@@ -26,14 +26,15 @@ void KfTrackProducerBase::putInEvt(edm::Event& evt,
 				   std::auto_ptr<reco::TrackCollection>& selTracks,
 				   std::auto_ptr<reco::TrackExtraCollection>& selTrackExtras,
 				   std::auto_ptr<std::vector<Trajectory> >&   selTrajectories,
-				   AlgoProductCollection& algoResults, TransientTrackingRecHitBuilder const * hitBuilder)
+				   AlgoProductCollection& algoResults, TransientTrackingRecHitBuilder const * hitBuilder,
+                                   const TrackerTopology *ttopo,
+                                   int BeforeOrAfter)
 {
 
   TrackingRecHitRefProd rHits = evt.getRefBeforePut<TrackingRecHitCollection>();
   reco::TrackExtraRefProd rTrackExtras = evt.getRefBeforePut<reco::TrackExtraCollection>();
 
   edm::Ref<reco::TrackExtraCollection>::key_type idx = 0;
-  edm::Ref<reco::TrackExtraCollection>::key_type hidx = 0;
   edm::Ref<reco::TrackCollection>::key_type iTkRef = 0;
   edm::Ref< std::vector<Trajectory> >::key_type iTjRef = 0;
   std::map<unsigned int, unsigned int> tjTkMap;
@@ -108,7 +109,7 @@ void KfTrackProducerBase::putInEvt(edm::Event& evt,
         edm::Handle<MeasurementTrackerEvent> mte;
         evt.getByToken(mteSrc_, mte);
 	// NavigationSetter setter( *theSchool );
-	setSecondHitPattern(theTraj,track,prop,&*mte);
+	setSecondHitPattern(theTraj,track,prop,&*mte, ttopo);
       }
     //==============================================================
     
@@ -123,42 +124,14 @@ void KfTrackProducerBase::putInEvt(edm::Event& evt,
     // This is consistent with innermost and outermost labels only for tracks from LHC collisions
     Traj2TrackHits t2t(hitBuilder,false);
     auto ih = selHits->size();
-    assert(ih==hidx);
     t2t(*theTraj,*selHits,useSplitting);
     auto ie = selHits->size();
+    tx.setHits(rHits,ih,ie-ih);
     for (;ih<ie; ++ih) {
       auto const & hit = (*selHits)[ih];
-      track.appendHitPattern(hit);
-      tx.add( TrackingRecHitRef( rHits, hidx ++ ) );
+      track.appendHitPattern(hit, *ttopo);
     }
     
-    /*
-    // ---  NOTA BENE: the convention is to sort hits and measurements "along the momentum".
-    // This is consistent with innermost and outermost labels only for tracks from LHC collisions
-    TrajectoryFitter::RecHitContainer transHits; theTraj->recHitsV(transHits, useSplitting);
-    if (theTraj->direction() == alongMomentum) {
-        for(TrajectoryFitter::RecHitContainer::const_iterator j = transHits.begin();
-                j != transHits.end(); j++) {
-            if ((**j).hit() != 0){
-                TrackingRecHit *hit = (**j).hit()->clone();
-                track.appendHitPattern(*hit);
-                selHits->push_back(hit);
-                tx.add(TrackingRecHitRef(rHits, hidx++));
-            }
-        }
-    }else{
-        for(TrajectoryFitter::RecHitContainer::const_iterator j = transHits.end() - 1;
-                j != transHits.begin() - 1; --j) {
-            if ((**j).hit() != 0){
-                TrackingRecHit * hit = (**j).hit()->clone();
-                track.appendHitPattern(*hit);
-                selHits->push_back(hit);
-                tx.add(TrackingRecHitRef(rHits, hidx++));
-            }
-        }
-    }
-    */
-
     // ----
     tx.setResiduals(trajectoryToResiduals(*theTraj));
 
@@ -188,16 +161,25 @@ void KfTrackProducerBase::putInEvt(edm::Event& evt,
   selTracks->shrink_to_fit();
   selTrackExtras->shrink_to_fit();
   selHits->shrink_to_fit(); 
-  rTracks_ = evt.put( selTracks );
-  evt.put( selTrackExtras );
-  evt.put( selHits );
+  if(BeforeOrAfter == 1){
+    rTracks_ = evt.put( selTracks, "beforeDAF" );
+    evt.put( selTrackExtras , "beforeDAF");
+  } else if (BeforeOrAfter == 2){
+    rTracks_ = evt.put( selTracks, "afterDAF" );
+    evt.put( selTrackExtras, "afterDAF" );
+  } else {
+    rTracks_ = evt.put( selTracks );
+    evt.put( selTrackExtras );
+    evt.put( selHits );
+  }
 
-  if(trajectoryInEvent_) {
+
+  if(trajectoryInEvent_ && BeforeOrAfter == 0) {
     selTrajectories->shrink_to_fit();
     edm::OrphanHandle<std::vector<Trajectory> > rTrajs = evt.put(selTrajectories);
 
     // Now Create traj<->tracks association map
-    std::auto_ptr<TrajTrackAssociationCollection> trajTrackMap( new TrajTrackAssociationCollection() );
+    std::auto_ptr<TrajTrackAssociationCollection> trajTrackMap( new TrajTrackAssociationCollection(rTrajs, rTracks_) );
     for ( std::map<unsigned int, unsigned int>::iterator i = tjTkMap.begin(); 
           i != tjTkMap.end(); i++ ) {
       edm::Ref<std::vector<Trajectory> > trajRef( rTrajs, (*i).first );

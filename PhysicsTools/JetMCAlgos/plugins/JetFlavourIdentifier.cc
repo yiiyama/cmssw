@@ -45,6 +45,7 @@
 #include "FWCore/Framework/interface/EventSetup.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
 #include "FWCore/Framework/interface/ESHandle.h"
+#include "FWCore/Framework/interface/makeRefToBaseProdFrom.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 
 //#include "SimGeneral/HepPDTRecord/interface/ParticleDataTable.h"
@@ -118,7 +119,7 @@ JetFlavourIdentifier::JetFlavourIdentifier( const edm::ParameterSet& iConfig )
     produces<JetFlavourMatchingCollection>();
     sourceByReferToken_ = consumes<JetMatchedPartonsCollection>(iConfig.getParameter<InputTag>("srcByReference"));
     physDefinition = iConfig.getParameter<bool>("physicsDefinition");
-    leptonInfo_ = iConfig.exists("leptonInfo") ? iConfig.getParameter<bool>("leptonInfo") : true;
+    leptonInfo_ = iConfig.exists("leptonInfo") ? iConfig.getParameter<bool>("leptonInfo") : false;
     // If we have a definition of which parton to identify, use it,
     // otherwise we default to the "old" behavior of either "physics" or "algorithmic".
     // Furthermore, if the specified definition is not sensible for the given jet,
@@ -147,7 +148,7 @@ void JetFlavourIdentifier::produce( Event& iEvent, const EventSetup& iEs )
   JetFlavourMatchingCollection *jfmc;
   if (!theTagByRef->empty()) {
     RefToBase<Jet> jj = theTagByRef->begin()->first;
-    jfmc = new JetFlavourMatchingCollection(RefToBaseProd<Jet>(jj));
+    jfmc = new JetFlavourMatchingCollection(edm::makeRefToBaseProdFrom(jj, iEvent));
   } else {
     jfmc = new JetFlavourMatchingCollection();
   }

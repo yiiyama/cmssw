@@ -47,12 +47,6 @@
 #include "DataFormats/ParticleFlowReco/interface/PFRecHitFraction.h"
 
 
-namespace{
-   const float kSliderRangeFactor = 0.2;
-}
-
-
-
 FWPFCandidateDetailView::FWPFCandidateDetailView ():
    m_range(1),
    m_candidate(0),
@@ -446,7 +440,6 @@ void FWPFCandidateDetailView::addHits( const std::vector<reco::PFRecHit> *hits)
 
 void FWPFCandidateDetailView::buildGLEventScene()
 {
-   printf("BUILD \n");
    if (m_eventList->HasChildren()) m_eventList->DestroyElements();
 
 
@@ -535,4 +528,4 @@ void FWPFCandidateDetailView::buildGLEventScene()
 
 }
 
-REGISTER_FWDETAILVIEW(FWPFCandidateDetailView, reco::PFCandidate);
+REGISTER_FWDETAILVIEW(FWPFCandidateDetailView, PF Candidate, particleFlowRecHitECAL&particleFlowRecHitHF&particleFlowClusterECAL);

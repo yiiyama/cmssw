@@ -1,4 +1,4 @@
-#include "FWCore/Framework/interface/EDProducer.h"
+#include "FWCore/Framework/interface/stream/EDProducer.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/EventSetup.h"
 #include "FWCore/Framework/interface/ESHandle.h"
@@ -21,7 +21,7 @@
 #include "TrackingTools/TrajectoryState/interface/TrajectoryStateOnSurface.h"
 
 #include "DataFormats/TrackerCommon/interface/TrackerTopology.h"
-#include "Geometry/Records/interface/IdealGeometryRecord.h"
+#include "Geometry/Records/interface/TrackerTopologyRcd.h"
 
 //for S/N cut
 #include "DataFormats/TrackerRecHit2D/interface/ProjectedSiStripRecHit2D.h"
@@ -41,6 +41,8 @@
 #include "TrackingTools/Records/interface/TransientRecHitRecord.h"
 #include "TrackingTools/TransientTrackingRecHit/interface/TransientTrackingRecHit.h"
 #include "TrackingTools/TransientTrackingRecHit/interface/TransientTrackingRecHitBuilder.h"
+
+#include "DataFormats/Provenance/interface/RunLumiEventNumber.h"
 
 #include <boost/regex.hpp>
 #include <map>
@@ -70,7 +72,7 @@
 namespace reco {
 
  namespace modules {
-  class TrackerTrackHitFilter : public edm::EDProducer {
+  class TrackerTrackHitFilter : public edm::stream::EDProducer<> {
   public:
     TrackerTrackHitFilter(const edm::ParameterSet &iConfig) ;
     virtual void produce(edm::Event &iEvent, const edm::EventSetup &iSetup) override;
@@ -107,8 +109,8 @@ namespace reco {
 
     edm::InputTag src_;
 
-    int iRun;
-    int iEvt;
+    edm::RunNumber_t iRun;
+    edm::EventNumber_t iEvt;
 
     size_t minimumHits_;
 
@@ -151,6 +153,7 @@ namespace reco {
     bool tagOverlaps_;
     int nOverlaps;
     int layerFromId (const DetId& id, const TrackerTopology *tTopo) const;
+    int sideFromId (const DetId& id, const TrackerTopology *tTopo) const;
     // bool checkOverlapHit();
 
     TrackCandidate makeCandidate(const reco::Track &tk, std::vector<TrackingRecHit *>::iterator hitsBegin, std::vector<TrackingRecHit *>::iterator hitsEnd) ;
@@ -160,7 +163,7 @@ namespace reco {
 
 
 TrackerTrackHitFilter::Rule::Rule(const std::string &str) {
-    static boost::regex rule("(keep|drop)\\s+([A-Z]+)(\\s+(\\d+))?");
+    static const boost::regex rule("(keep|drop)\\s+([A-Z]+)(\\s+(\\d+))?");
     boost::cmatch match;
     std::string match_1;
     std::string match_2;
@@ -170,7 +173,7 @@ TrackerTrackHitFilter::Rule::Rule(const std::string &str) {
         throw cms::Exception("Configuration") << "Rule '" << str << "' not understood.\n";
     }
     else{
-      std::cout<<"*** Rule Command given to TrackerTrackHitFilter:\t"<<str<<std::endl;
+      edm::LogInfo("TrackerTrackHitFilter") << "*** Rule Command given to TrackerTrackHitFilter:\t"<<str;
 
     }
     // Set up fields:
@@ -197,15 +200,7 @@ TrackerTrackHitFilter::Rule::Rule(const std::string &str) {
 }//end Rule::Rule
 
  int TrackerTrackHitFilter::Rule::layer(DetId detid, const TrackerTopology *tTopo) const {
-    switch (detid.subdetId()) {
-        case PixelSubdetector::PixelBarrel: return tTopo->pxbLayer(detid);
-        case PixelSubdetector::PixelEndcap: return tTopo->pxfDisk(detid);
-        case StripSubdetector::TIB:         return tTopo->tibLayer(detid);
-        case StripSubdetector::TID:         return tTopo->tidWheel(detid);
-        case StripSubdetector::TOB:         return tTopo->tobLayer(detid);
-        case StripSubdetector::TEC:         return tTopo->tecWheel(detid);
-    }
-    return -1; // never match
+    return tTopo->layer(detid);
 }
 
 void TrackerTrackHitFilter::parseStoN(const std::string &str) {
@@ -213,9 +208,9 @@ void TrackerTrackHitFilter::parseStoN(const std::string &str) {
   //followed b an arbitrary number of blanks, one or more digits (not necessary, they cannot also be,
   // another set of blank spaces and, again another *eventual* digit
   // static boost::regex rule("\\s+([A-Z]+)(\\s+(\\d+)(\\.)?(\\d+))?(\\s+(\\d+)(\\.)?(\\d+))?");
- static boost::regex rule("([A-Z]+)"
-			  "\\s*(\\d+\\.*\\d*)?"
-			  "\\s*(\\d+\\.*\\d*)?");
+ static const boost::regex rule("([A-Z]+)"
+                                "\\s*(\\d+\\.*\\d*)?"
+                                "\\s*(\\d+\\.*\\d*)?");
 
 
   boost::cmatch match;
@@ -260,7 +255,7 @@ void TrackerTrackHitFilter::parseStoN(const std::string &str) {
       if (match[3].first != match[3].second ) {
 	subdetStoNhighcut_[cnt] = atof(match[3].first);
       }
-      std::cout<<"Setting thresholds*&^ for subdet #"<<cnt+1<<" = "<<subdetStoNlowcut_[cnt]<<" - "<<subdetStoNhighcut_[cnt]<<std::endl;
+      edm::LogInfo("TrackerTrackHitFilter") <<"Setting thresholds*&^ for subdet #"<<cnt+1<<" = "<<subdetStoNlowcut_[cnt]<<" - "<<subdetStoNhighcut_[cnt];
     }
   }
 
@@ -313,7 +308,7 @@ TrackerTrackHitFilter::TrackerTrackHitFilter(const edm::ParameterSet &iConfig) :
     }
 
     if(pxlTPLqBin_.size()>2){
-      std::cout<<"Warning from TrackerTrackHitFilter: vector with qBin cuts has size > 2. Additional items will be ignored."<<std::endl;
+      edm::LogInfo("TrackerTrackHitFIlter")<<"Warning from TrackerTrackHitFilter: vector with qBin cuts has size > 2. Additional items will be ignored.";
     }
 
 
@@ -342,15 +337,15 @@ TrackerTrackHitFilter::TrackerTrackHitFilter(const edm::ParameterSet &iConfig) :
 	 parseStoN(*str_StoN);
        }
        ////edm::LogDebug("TrackerTrackHitFilter")
-       std::cout<<"Finished parsing S/N. Applying following cuts to subdets:";
+       edm::LogInfo("TrackerTrackHitFilter")<<"Finished parsing S/N. Applying following cuts to subdets:";
       for(cnt=0;cnt<6;cnt++ ){
         ////edm::LogDebug("TrackerTrackHitFilter")
-	std::cout<<"Subdet #"<<cnt+1<<" -> "<<subdetStoNlowcut_[cnt]<<" , "<<subdetStoNhighcut_[cnt];
+        edm::LogVerbatim("TrackerTrackHitFilter")<<"Subdet #"<<cnt+1<<" -> "<<subdetStoNlowcut_[cnt]<<" , "<<subdetStoNhighcut_[cnt];
       }
     }//end if rejectBadStoNHits_
 
 
-    if(rejectLowAngleHits_ )	std::cout<<"\nApplying cut on angle track = "<<TrackAngleCut_<<std::endl;
+    if(rejectLowAngleHits_ )	edm::LogInfo("TrackerTrackHitFilter")<<"\nApplying cut on angle track = "<<TrackAngleCut_;
 
 
     // sort detids to ignore
@@ -425,7 +420,6 @@ TrackerTrackHitFilter::produce(edm::Event &iEvent, const edm::EventSetup &iSetup
 	if(nvalidhits >= int(minimumHits_)){
 	  output->push_back( makeCandidate ( *trk, begin, end ) );
 	}
-	nvalidhits=0;
       }
       else{//all invalid hits have been already kicked out
 	if ((end - begin) >= int(minimumHits_)) {
@@ -564,7 +558,7 @@ void TrackerTrackHitFilter::produceFromTrack(const edm::EventSetup &iSetup, cons
         hits.clear(); // extra safety
 
         for (trackingRecHit_iterator ith = itt->recHitsBegin(), edh = itt->recHitsEnd(); ith != edh; ++ith) {
-	  const TrackingRecHit * hit = ith->get(); // ith is an iterator on edm::Ref to rechit
+	  const TrackingRecHit * hit = (*ith); // ith is an iterator on edm::Ref to rechit
 
 	    DetId detid = hit->geographicalId();
 
@@ -599,7 +593,7 @@ void TrackerTrackHitFilter::produceFromTrajectory(const edm::EventSetup &iSetup,
 
   //Retrieve tracker topology from geometry
   edm::ESHandle<TrackerTopology> tTopoHand;
-  iSetup.get<IdealGeometryRecord>().get(tTopoHand);
+  iSetup.get<TrackerTopologyRcd>().get(tTopoHand);
   const TrackerTopology *tTopo=tTopoHand.product();
 
 
@@ -644,7 +638,8 @@ void TrackerTrackHitFilter::produceFromTrajectory(const edm::EventSetup &iSetup,
 	if(tagOverlaps_){	///---OverlapBegin
 	  //std::cout<<"Looking for overlaps in Run="<<iRun<<" , Event ="<<iEvt<<std::flush;
 
-	  int layer(layerFromId(detid,tTopo));//layer 1-4=TIB, layer 5-10=TOB
+	  int side(sideFromId(detid,tTopo));//side 0=barrel, 1=minus , 2=plus
+	  int layer(layerFromId(detid,tTopo));//layer or disk
 	  int subDet = detid.subdetId();
 	  //std::cout  << "  Check Subdet #" <<subDet << ", layer = " <<layer<<" stereo: "<< ((subDet > 2)?(SiStripDetId(detid).stereo()):2);
 
@@ -654,10 +649,12 @@ void TrackerTrackHitFilter::produceFromTrajectory(const edm::EventSetup &iSetup,
 
 		DetId compareId = itmCompare->recHit()->geographicalId();
 		if ( subDet != compareId.subdetId() ||
+		     side != sideFromId(compareId,tTopo) ||
 		     layer  != layerFromId(compareId,tTopo)) break;
 		if (!itmCompare->recHit()->isValid()) continue;
-		if ( (subDet<=2) ||
-		     (subDet > 2 && SiStripDetId(detid).stereo()==SiStripDetId(compareId).stereo()))
+		if(GeomDetEnumerators::isTrackerPixel(theGeometry->geomDetSubDetector(detid.subdetId())) ||
+		   (GeomDetEnumerators::isTrackerStrip(theGeometry->geomDetSubDetector(detid.subdetId())) &&
+		    SiStripDetId(detid).stereo()==SiStripDetId(compareId).stereo()))
 		  {//if either pixel or strip stereo module
 		    //  overlapHits.push_back(std::make_pair(&(*itmCompare),&(*itm)));
 		    //std::cout<< "Adding pair "<< ((subDet >2)?(SiStripDetId(detid).stereo()):2)
@@ -706,7 +703,7 @@ int TrackerTrackHitFilter::checkHit(const edm::EventSetup &iSetup,const  DetId &
 
   //Retrieve tracker topology from geometry
   edm::ESHandle<TrackerTopology> tTopoHand;
-  iSetup.get<IdealGeometryRecord>().get(tTopoHand);
+  iSetup.get<TrackerTopologyRcd>().get(tTopoHand);
   const TrackerTopology *tTopo=tTopoHand.product();
 
   int hitresult=0;
@@ -753,7 +750,7 @@ bool TrackerTrackHitFilter::checkStoN(const edm::EventSetup &iSetup, const DetId
   //  if( subdetStoN_[subdet_cnt-1]&& (id.subdetId()==subdet_cnt)  ){//check that hit is in a det belonging to a subdet where we decided to apply a S/N cut
 
 
-    if(subdet_cnt>2){ //SiStrip
+    if(GeomDetEnumerators::isTrackerStrip(theGeometry->geomDetSubDetector(id.subdetId()))) {
       if( subdetStoN_[subdet_cnt-1]){//check that hit is in a det belonging to a subdet where we decided to apply a S/N cut
 	const std::type_info &type = typeid(*therechit);
 	const SiStripCluster* cluster;
@@ -791,7 +788,7 @@ bool TrackerTrackHitFilter::checkStoN(const edm::EventSetup &iSetup, const DetId
       }//end if  subdetStoN_[subdet_cnt]&&...
 
     }//end if subdet_cnt >2
-    else if (subdet_cnt<=2){//pixel
+    else if (GeomDetEnumerators::isTrackerPixel(theGeometry->geomDetSubDetector(id.subdetId()))){//pixel 
       //pixels have naturally a very low noise (because of their low capacitance). So the S/N cut is
       //irrelevant in this case. Leave it dummy
       keepthishit = true;
@@ -821,7 +818,7 @@ bool TrackerTrackHitFilter::checkStoN(const edm::EventSetup &iSetup, const DetId
 	if( haspassed_tplreco && xyprob>pxlTPLProbXY_ && xychargeprob>pxlTPLProbXYQ_ && qbin>pxlTPLqBin_[0] && qbin<=pxlTPLqBin_[1] )keepthishit = true;
 
       }
-      else {std::cout<<"HIT IN PIXEL ("<<subdet_cnt <<") but PixelRecHit is EMPTY!!!"<<std::endl;}
+      else {edm::LogInfo("TrackerTrackHitFilter")<<"HIT IN PIXEL ("<<subdet_cnt <<") but PixelRecHit is EMPTY!!!";}
       }//end if check pixel quality flag
     }
     //    else  throw cms::Exception("TrackerTrackHitFilter") <<"Loop over subdetector out of range when applying the S/N cut: "<<subdet_cnt;
@@ -862,7 +859,7 @@ bool TrackerTrackHitFilter::checkHitAngle(const TrajectoryMeasurement &meas){
       TransientTrackingRecHit::ConstRecHitPointer hitpointer = meas.recHit();
       if(hitpointer->isValid()){
       const TrackingRecHit *hit=(*hitpointer).hit();
-      if( (hit->geographicalId()).subdetId()<=2  ){//do it only for pixel hits
+      if(GeomDetEnumerators::isTrackerPixel(theGeometry->geomDetSubDetector(hit->geographicalId().subdetId()))) {//do it only for pixel hits
 	corrcharge_ok=false;
 	float clust_alpha= atan2( mom_z, mom_x );
 	float clust_beta=  atan2( mom_z, mom_y );
@@ -903,7 +900,7 @@ bool TrackerTrackHitFilter::checkPXLCorrClustCharge(const TrajectoryMeasurement 
   TransientTrackingRecHit::ConstRecHitPointer hitpointer = meas.recHit();
   if(!hitpointer->isValid()) return corrcharge_ok;
   const TrackingRecHit *hit=(*hitpointer).hit();
-  if( (hit->geographicalId()).subdetId()>2  ){//SiStrip hit, skip
+  if(GeomDetEnumerators::isTrackerStrip(theGeometry->geomDetSubDetector(hit->geographicalId().subdetId()))) {//SiStrip hit, skip
      return corrcharge_ok;
   }
 
@@ -934,32 +931,12 @@ bool TrackerTrackHitFilter::checkPXLCorrClustCharge(const TrajectoryMeasurement 
 
 int TrackerTrackHitFilter::layerFromId (const DetId& id, const TrackerTopology *tTopo) const
 {
- if ( id.subdetId()== int(PixelSubdetector::PixelBarrel) ) {
+  return tTopo->layer(id);
+}
 
-    return tTopo->pxbLayer(id);
-  }
-  else if ( id.subdetId()== int(PixelSubdetector::PixelEndcap) ) {
-
-    return tTopo->pxfDisk(id) + (3*(tTopo->pxfSide(id)-1));
-  }
-  else if ( id.subdetId()==StripSubdetector::TIB ) {
-
-    return tTopo->tibLayer(id);
-  }
-  else if ( id.subdetId()==StripSubdetector::TOB ) {
-
-    return tTopo->tobLayer(id);
-  }
-  else if ( id.subdetId()==StripSubdetector::TEC ) {
-
-    return tTopo->tecWheel(id) + (9*(tTopo->tecSide(id)-1));
-  }
-  else if ( id.subdetId()==StripSubdetector::TID ) {
-
-    return tTopo->tidWheel(id) + (3*(tTopo->tidSide(id)-1));
-  }
-  return -1;
-
+int TrackerTrackHitFilter::sideFromId (const DetId& id, const TrackerTopology *tTopo) const
+{
+  return tTopo->side(id);
 }
 
 }} //namespaces

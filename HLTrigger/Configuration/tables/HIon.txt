@@ -1,24 +1,25 @@
 # "HIon" menu
 
-HLT_CaloJet260_v*                                       # JIRA: CMSHLT-67
+HLT_HIL1DoubleMu0_HighQ_v*			# CMSHLT-198
+HLT_HIL2Mu3_v*					# CMSHLT-198
+HLT_HIL2Mu7_v*					# CMSHLT-198
+HLT_HIL2Mu15_v*					# CMSHLT-198
+HLT_HIL2Mu3_NHitQ_v*				# CMSHLT-198
+HLT_HIL2DoubleMu0_v*				# CMSHLT-198
+HLT_HIL2DoubleMu0_NHitQ_v*			# CMSHLT-198
+HLT_HIL2DoubleMu3_v*				# CMSHLT-198
+HLT_HIL3Mu3_v*					# CMSHLT-198
+HLT_HIL3DoubleMuOpen_v*				# CMSHLT-198
+HLT_HIL3DoubleMuOpen_SS_v*			# CMSHLT-198
+HLT_HIL3DoubleMuOpen_OS_v*			# CMSHLT-198
+HLT_HIL3DoubleMuOpen_OS_NoCowboy_v*		# CMSHLT-198
 
-HLT_Physics_v*						# skim
+HLT_Physics_v*
 
 HLTriggerFirstPath
 HLTriggerFinalPath
 HLTAnalyzerEndpath
-AOutput
 
-#AForHIOutput
-#ALCAP0Output
-#ALCAPHISYMOutput
-#ALCALUMIPIXELSOutput
-#CalibrationOutput
-DQMOutput						# online DQMFileSaver
-#EcalCalibrationOutput
-#ExpressForHIOutput
-#HLTDQMOutput
-#HLTDQMResultsOutput					# Removed from the master since /dev/CMSSW_5_2_1/HLT/V435
-#HLTMONOutput
-#NanoDSTOutput
-#RPCMONOutput
+PhysicsEGammaCommissioningOutput
+#RatesMonitoring				# only in 'online'
+DQMOutput

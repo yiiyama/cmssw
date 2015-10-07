@@ -24,10 +24,30 @@ namespace l1t {
     Stage2Layer2TauAlgorithmFirmwareImp1(CaloParams* params); //const CaloMainProcessorParams & dbPars);
     virtual ~Stage2Layer2TauAlgorithmFirmwareImp1();
     virtual void processEvent(const std::vector<CaloCluster> & clusters,
-			      std::vector<Tau> & taus);
+    				 		  const std::vector<CaloTower>& towers,
+			      			  std::vector<Tau> & taus);
     
   private:
+    void merging(const std::vector<l1t::CaloCluster>& clusters,  const std::vector<l1t::CaloTower>& towers, std::vector<l1t::Tau>& taus);
+
+    // isolation
+    int isoCalTauHwFootPrint(const l1t::CaloCluster&,const std::vector<l1t::CaloTower>&);
+
+	//calibration
+    void loadCalibrationLuts();
+
+    double calibratedPt(int hwPtEm, int hwPtHad, int ieta);
+    
+    // parameters
     CaloParams* params_;
+    std::vector<std::vector<float> >coefficients_;
+
+    float offsetBarrelEH_;
+    float offsetBarrelH_;
+    float offsetEndcapsEH_;
+    float offsetEndcapsH_;
+	
+	unsigned int isoLutIndex(int Et, unsigned int nrTowers);
   };
   
 }

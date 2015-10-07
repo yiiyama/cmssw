@@ -22,6 +22,8 @@
 #include "DataFormats/Common/interface/Handle.h"
 #include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
+#include "FWCore/Framework/interface/ConsumesCollector.h"
+#include "FWCore/Utilities/interface/EDGetToken.h"
 
 //--- for SimHit
 #include "SimDataFormats/TrackingHit/interface/PSimHit.h"
@@ -40,9 +42,8 @@
 #include "DataFormats/TrackerRecHit2D/interface/SiStripRecHit1D.h"
 #include "DataFormats/TrackerRecHit2D/interface/SiStripMatchedRecHit2D.h"
 #include "DataFormats/TrackerRecHit2D/interface/ProjectedSiStripRecHit2D.h"
-#include "DataFormats/TrackerRecHit2D/interface/SiTrackerGSRecHit2D.h"
 #include "DataFormats/TrackerRecHit2D/interface/SiTrackerMultiRecHit.h"
-#include "DataFormats/TrackerRecHit2D/interface/SiTrackerGSMatchedRecHit2D.h"
+#include "DataFormats/TrackerRecHit2D/interface/FastTrackerRecHit.h"
 
 #include "SimDataFormats/CrossingFrame/interface/MixCollection.h"
 
@@ -50,15 +51,22 @@
 #include <vector>
 
 typedef std::pair<uint32_t, EncodedEventId> SimHitIdpr;
-
 class TrackerHitAssociator {
   
  public:
-  
-  // Simple constructor
-  TrackerHitAssociator(const edm::Event& e);
-  // Constructor with configurables
-  TrackerHitAssociator(const edm::Event& e, const edm::ParameterSet& conf);
+  struct Config {
+    Config(const edm::ParameterSet& conf, edm::ConsumesCollector && iC);
+    Config(edm::ConsumesCollector && iC);
+    bool doPixel_, doStrip_, doTrackAssoc_, assocHitbySimTrack_;
+    edm::EDGetTokenT<edm::DetSetVector<StripDigiSimLink> > stripToken_;
+    edm::EDGetTokenT<edm::DetSetVector<PixelDigiSimLink> > pixelToken_;
+    std::vector<edm::EDGetTokenT<CrossingFrame<PSimHit> > > cfTokens_;
+    std::vector<edm::EDGetTokenT<std::vector<PSimHit> > > simHitTokens_;
+  };
+
+  // The constructor supporting the consumes interface and tokens
+  TrackerHitAssociator(const edm::Event& e, const Config& config);
+
   // Destructor
   virtual ~TrackerHitAssociator(){}
   
@@ -71,6 +79,13 @@ class TrackerHitAssociator {
   void associateHitId(const TrackingRecHit & thit,std::vector<SimHitIdpr> &simhitid, std::vector<simhitAddr>* simhitCFPos=0) const;
   template<typename T>
     void associateSiStripRecHit(const T *simplerechit, std::vector<SimHitIdpr>& simtrackid, std::vector<simhitAddr>* simhitCFPos=0) const;
+
+  // Method for obtaining simTracks and simHits from a cluster
+  void associateCluster(const SiStripCluster* clust,
+			const DetId& detid,
+			std::vector<SimHitIdpr>& simtrackid, std::vector<PSimHit>& simhit) const;
+
+  // Obtain simTracks, and optionally simHit addresses, from a cluster 
   void associateSimpleRecHitCluster(const SiStripCluster* clust,
 				    const DetId& detid,
 				    std::vector<SimHitIdpr>& simtrackid, std::vector<simhitAddr>* simhitCFPos=0) const;
@@ -78,10 +93,10 @@ class TrackerHitAssociator {
   std::vector<SimHitIdpr> associateMatchedRecHit(const SiStripMatchedRecHit2D * matchedrechit, std::vector<simhitAddr>* simhitCFPos=0) const;
   std::vector<SimHitIdpr> associateProjectedRecHit(const ProjectedSiStripRecHit2D * projectedrechit, std::vector<simhitAddr>* simhitCFPos=0) const;
   void associatePixelRecHit(const SiPixelRecHit * pixelrechit, std::vector<SimHitIdpr> & simhitid, std::vector<simhitAddr>* simhitCFPos=0) const;
-  std::vector<SimHitIdpr> associateGSRecHit(const SiTrackerGSRecHit2D * gsrechit) const;
+  std::vector<SimHitIdpr> associateFastRecHit(const FastTrackerRecHit * rechit) const;
   std::vector<SimHitIdpr> associateMultiRecHitId(const SiTrackerMultiRecHit * multirechit, std::vector<simhitAddr>* simhitCFPos=0) const;
   std::vector<PSimHit>    associateMultiRecHit(const SiTrackerMultiRecHit * multirechit) const;
-  std::vector<SimHitIdpr> associateGSMatchedRecHit(const SiTrackerGSMatchedRecHit2D * gsmrechit) const;
+  
   
   typedef std::map<unsigned int, std::vector<PSimHit> > simhit_map;
   simhit_map SimHitMap;
@@ -91,15 +106,10 @@ class TrackerHitAssociator {
  private:
   typedef std::vector<std::string> vstring;
 
-  void makeMaps(const edm::Event& theEvent, const vstring trackerContainers);
-
+  void makeMaps(const edm::Event& theEvent, const Config& config);
   edm::Handle< edm::DetSetVector<StripDigiSimLink> >  stripdigisimlink;
   edm::Handle< edm::DetSetVector<PixelDigiSimLink> >  pixeldigisimlink;
-  
   bool doPixel_, doStrip_, doTrackAssoc_, assocHitbySimTrack_;
-  
-};  
-
+};
 
 #endif
-

@@ -10,11 +10,11 @@ def performInjectionOptionTest(opt):
         sys.exit(-1)
     if opt.wmcontrol=='init':
         #init means it'll be in test mode
-        opt.nThreads=0
+        opt.nProcs=0
     if opt.wmcontrol=='test':
         #means the wf were created already, and we just dryRun it.
         opt.dryRun=True
-    if opt.wmcontrol=='submit' and opt.nThreads==0:
+    if opt.wmcontrol=='submit' and opt.nProcs==0:
         print 'Not injecting to wmagent in -j 0 mode. Need to run the worklfows.'
         sys.exit(-1)
     if opt.wmcontrol=='force':
@@ -54,10 +54,15 @@ class MatrixInjector(object):
         if not self.wmagent:
             self.wmagent=os.getenv('WMAGENT_REQMGR')
         if not self.wmagent:
-            self.wmagent = 'cmsweb.cern.ch'
+            if not opt.testbed :
+                self.wmagent = 'cmsweb.cern.ch'
+                self.DbsUrl = "https://"+self.wmagent+"/dbs/prod/global/DBSReader"
+            else :
+                self.wmagent = 'cmsweb-testbed.cern.ch'
+                self.DbsUrl = "https://"+self.wmagent+"/dbs/int/global/DBSReader"
 
         if not self.dqmgui:
-            self.dqmgui="https://cmsweb.cern.ch/dqm/relval"
+            self.dqmgui="https://cmsweb.cern.ch/dqm/relval;https://cmsweb-testbed.cern.ch/dqm/relval"
         #couch stuff
         self.couch = 'https://'+self.wmagent+'/couchdb'
 #        self.couchDB = 'reqmgr_config_cache'
@@ -79,7 +84,9 @@ class MatrixInjector(object):
             print '\n\tFound wmclient\n'
             
         self.defaultChain={
-            "RequestType" :   "TaskChain",                    #this is how we handle relvals
+            "RequestType" :    "TaskChain",                    #this is how we handle relvals
+            "SubRequestType" : "RelVal",                       #this is how we handle relvals, now that TaskChain is also used for central MC production
+            "RequestPriority": 500000,
             "Requestor": self.user,                           #Person responsible
             "Group": self.group,                              #group for the request
             "CMSSWVersion": os.getenv('CMSSW_VERSION'),       #CMSSW Version (used for all tasks in chain)
@@ -89,7 +96,7 @@ class MatrixInjector(object):
             "GlobalTag": None,                                #Global Tag (overridden per task)
             "CouchURL": self.couch,                           #URL of CouchDB containing Config Cache
             "ConfigCacheURL": self.couch,                     #URL of CouchDB containing Config Cache
-            "DbsUrl": "https://cmsweb.cern.ch/dbs/prod/global/DBSReader",
+            "DbsUrl": self.DbsUrl,
             #- Will contain all configs for all Tasks
             #"SiteWhitelist" : ["T2_CH_CERN", "T1_US_FNAL"],   #Site whitelist
             "TaskChain" : None,                                  #Define number of tasks in chain.
@@ -97,9 +104,10 @@ class MatrixInjector(object):
             "unmergedLFNBase" : "/store/unmerged",
             "mergedLFNBase" : "/store/relval",
             "dashboardActivity" : "relval",
-            "Memory" : 2400,
+            "Multicore" : opt.nThreads,
+            "Memory" : 3000,
             "SizePerEvent" : 1234,
-            "TimePerEvent" : 20
+            "TimePerEvent" : 0.1
             }
 
         self.defaultHarvest={
@@ -160,12 +168,13 @@ class MatrixInjector(object):
             wmsplit['RECOUP15_PU50']=1
             wmsplit['DIGIUP15_PU25']=1
             wmsplit['RECOUP15_PU25']=1
-            wmsplit['DIGIHISt3']=5
+            wmsplit['DIGIHIMIX']=5
+            wmsplit['RECOHIMIX']=5
             wmsplit['RECODSplit']=1
-            wmsplit['SingleMuPt10_ID']=1
-            wmsplit['DIGI_ID']=1
-            wmsplit['RECO_ID']=1
-            wmsplit['TTbar_ID']=1
+            wmsplit['SingleMuPt10_UP15_ID']=1
+            wmsplit['DIGIUP15_ID']=1
+            wmsplit['RECOUP15_ID']=1
+            wmsplit['TTbar_13_ID']=1
             wmsplit['SingleMuPt10FS_ID']=1
             wmsplit['TTbarFS_ID']=1
                                     
@@ -189,6 +198,10 @@ class MatrixInjector(object):
                     index=0
                     splitForThisWf=None
                     thisLabel=self.speciallabel
+                    #if 'HARVESTGEN' in s[3]:
+                    if len( [step for step in s[3] if "HARVESTGEN" in step] )>0:
+                        chainDict['TimePerEvent']=0.01
+                        thisLabel=thisLabel+"_gen"
                     processStrPrefix=''
                     setPrimaryDs=None
                     for step in s[3]:
@@ -236,6 +249,8 @@ class MatrixInjector(object):
                                 # get the run numbers or #events
                                 if len(nextHasDSInput.run):
                                     chainDict['nowmTasklist'][-1]['RunWhitelist']=nextHasDSInput.run
+                                if len(nextHasDSInput.ls):
+                                    chainDict['nowmTasklist'][-1]['LumiList']=nextHasDSInput.ls
                                 #print "what is s",s[2][index]
                                 if '--data' in s[2][index] and nextHasDSInput.label:
                                     thisLabel+='_RelVal_%s'%nextHasDSInput.label

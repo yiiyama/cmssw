@@ -26,7 +26,7 @@ class PileupSummaryInfo {
  public:
 
   PileupSummaryInfo(){};
-
+ 
   PileupSummaryInfo( const int num_PU_vertices,
 		     std::vector<float>& zpositions,
 		     std::vector<float>& sumpT_lowpT,
@@ -42,15 +42,17 @@ class PileupSummaryInfo {
 		     std::vector<int>& ntrks_highpT,
 		     int bunchCrossing);
 
-
   PileupSummaryInfo( const int num_PU_vertices,
 		     std::vector<float>& zpositions,
 		     std::vector<float>& sumpT_lowpT,
 		     std::vector<float>& sumpT_highpT,
 		     std::vector<int>& ntrks_lowpT,
 		     std::vector<int>& ntrks_highpT,
+		     std::vector<edm::EventID>& eventInfo,
+		     std::vector<float>& pT_hats,
 		     int bunchCrossing,
-		     float TrueNumInteractions);
+		     float TrueNumInteractions,
+		     int bunchSpacing);
 
   PileupSummaryInfo( const int num_PU_vertices,
 		     std::vector<float>& instLumi,
@@ -67,7 +69,9 @@ class PileupSummaryInfo {
   const std::vector<int>& getPU_ntrks_highpT() const { return ntrks_highpT_; }
   const std::vector<float>& getPU_instLumi() const { return instLumi_; }
   const std::vector<edm::EventID>& getPU_EventID() const { return eventInfo_; }
+  const std::vector<float>& getPU_pT_hats() const { return pT_hats_; }
   const int getBunchCrossing() const { return bunchCrossing_;}
+  const int getBunchSpacing() const { return bunchSpacing_;}
   const float getTrueNumInteractions() const { return TrueNumInteractions_;}
 
  private:
@@ -80,14 +84,17 @@ class PileupSummaryInfo {
   std::vector<float> sumpT_highpT_;
   std::vector<int> ntrks_lowpT_;
   std::vector<int> ntrks_highpT_;
+  std::vector<edm::EventID> eventInfo_;
+  std::vector<float> pT_hats_;
   int bunchCrossing_;
+  int bunchSpacing_;
   float TrueNumInteractions_;
 
 
   // for DataMixer pileup, we only have raw information:
 
   std::vector<float> instLumi_;
-  std::vector<edm::EventID> eventInfo_;
+
 
 };
 

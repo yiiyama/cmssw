@@ -7,7 +7,7 @@ fre = re.compile("function")
 
 statics = set()
 toplevelfuncs = set()
-skipfunc = re.compile("(edm::(LuminosityBlock::|Run::|Event::)getBy(Label|Token))|(fwlite::|edm::EDProductGetter::getIt|edm::Event::|edm::eventsetup::EventSetupRecord::get|edm::eventsetup::DataProxy::getImpl|edm::EventPrincipal::unscheduledFill|edm::ServiceRegistry::get|edm::eventsetup::EventSetupRecord::getImplementation|edm::eventsetup::EventSetupRecord::getFromProxy|edm::eventsetup::DataProxy::get)")
+skipfunc = re.compile("(edm::(LuminosityBlock::|Run::|Event::)getBy(Label|Token))|(fwlite::|edm::EDProductGetter::getIt|edm::Event::|edm::eventsetup::EventSetupRecord::get|edm::eventsetup::DataProxy::getImpl|edm::EventPrincipal::unscheduledFill|edm::ServiceRegistry::get|edm::eventsetup::EventSetupRecord::getImplementation|edm::eventsetup::EventSetupRecord::getFromProxy|edm::eventsetup::DataProxy::get|edm::serviceregistry::ServicesManager::MakerHolder::add)")
 skipfuncs=set()
 
 import networkx as nx
@@ -30,6 +30,9 @@ for line in f :
 				else : G.add_edge(fields[3],fields[1],kind=' calls function ')
 		if fields[2] == ' static variable ' :
 			G.add_edge(fields[1],fields[3],kind=' static variable ')
+			statics.add(fields[3])
+		if fields[2] == ' known thread unsafe function ' :
+			G.add_edge(fields[1],fields[3],kind=' known thread unsafe function ')
 			statics.add(fields[3])
 f.close()
 for tfunc in sorted(toplevelfuncs):

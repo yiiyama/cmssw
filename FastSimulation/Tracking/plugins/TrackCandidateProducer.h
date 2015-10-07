@@ -1,87 +1,49 @@
 #ifndef FastSimulation_Tracking_TrackCandidateProducer_h
 #define FastSimulation_Tracking_TrackCandidateProducer_h
 
-#include "FWCore/Framework/interface/EDProducer.h"
+// framework stuff
+#include "FWCore/Framework/interface/stream/EDProducer.h"
 #include "FWCore/Utilities/interface/InputTag.h"
 
-#include "DataFormats/TrackCandidate/interface/TrackCandidateCollection.h"
-
-#include "DataFormats/TrackReco/interface/Track.h"
-#include "TrackingTools/PatternTools/interface/Trajectory.h"
-#include "TrackingTools/PatternTools/interface/TrajTrackAssociation.h"
+// data formats
 #include "SimDataFormats/Track/interface/SimTrackContainer.h"
 #include "SimDataFormats/Vertex/interface/SimVertexContainer.h"
+#include "DataFormats/TrackCandidate/interface/TrackCandidateCollection.h"
+#include "DataFormats/TrackerRecHit2D/interface/FastTrackerRecHitCollection.h"
 
-class TrackerGeometry;
-class TrajectoryStateOnSurface;
-class PropagatorWithMaterial;
+// specific to this module
+#include "FastSimulation/Tracking/interface/TrajectorySeedHitCandidate.h"
+#include "FastSimulation/Tracking/interface/FastTrackerRecHitSplitter.h"
 
-namespace edm { 
-  class ParameterSet;
-  class Event;
-  class EventSetup;
-}
-
-namespace reco { 
-  class Track;
-}
-
-class TrackerRecHit;
-class TrackingRecHit;
-
-#include <vector>
-
-class TrackCandidateProducer : public edm::EDProducer
+class TrackCandidateProducer : public edm::stream::EDProducer <>
 {
  public:
   
   explicit TrackCandidateProducer(const edm::ParameterSet& conf);
   
-  virtual ~TrackCandidateProducer();
-  
-  virtual void beginRun(edm::Run const& run, const edm::EventSetup & es) override;
+  virtual ~TrackCandidateProducer(){;}
   
   virtual void produce(edm::Event& e, const edm::EventSetup& es) override;
   
  private:
 
-  int findId(const reco::Track& aTrack) const;
-
-  void addSplitHits(const TrackerRecHit&, std::vector<TrackerRecHit>&); 
-  bool isDuplicateCandidate(const TrackCandidateCollection& candidates, const TrackCandidate& newCand) const;
-  bool sameLocalParameters(const TrackingRecHit* aH, const TrackingRecHit* bH) const;
-
- private:
-
-  const TrackerGeometry*  theGeometry;
-  const MagneticField*  theMagField;
-  PropagatorWithMaterial* thePropagator;
-
-
-  edm::InputTag seedProducer;
-  edm::InputTag hitProducer;
-  // edm::InputTag trackProducer;
-  std::vector<edm::InputTag> trackProducers;
-  
   unsigned int minNumberOfCrossedLayers;
   unsigned int maxNumberOfCrossedLayers;
 
   bool rejectOverlaps;
   bool splitHits;
-  bool seedCleaning;
-  bool keepFittedTracks;
+  bool hitMasks_exists;
+ 
+  FastTrackerRecHitSplitter hitSplitter;
 
-  edm::InputTag simTracks_;
-  double estimatorCut_;
-
-  // tokens
+  // tokens & labels
   edm::EDGetTokenT<edm::View<TrajectorySeed> > seedToken;
-  edm::EDGetTokenT<SiTrackerGSMatchedRecHit2DCollection> recHitToken;
+  edm::EDGetTokenT<FastTrackerRecHitCombinationCollection> recHitCombinationsToken;
   edm::EDGetTokenT<edm::SimVertexContainer> simVertexToken;
   edm::EDGetTokenT<edm::SimTrackContainer> simTrackToken;
-  std::vector<edm::EDGetTokenT<reco::TrackCollection> > trackTokens;
-  std::vector<edm::EDGetTokenT<std::vector<Trajectory> > > trajectoryTokens;
-  std::vector<edm::EDGetTokenT<TrajTrackAssociationCollection> >  assoMapTokens;
+  edm::EDGetTokenT<std::vector<bool> > hitMasksToken;
+  std::string propagatorLabel;
+  
 };
 
 #endif

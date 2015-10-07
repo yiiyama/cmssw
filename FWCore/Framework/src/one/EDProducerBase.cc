@@ -57,6 +57,7 @@ namespace edm {
         std::lock_guard<std::mutex> guard(mutex_);
         {
           std::lock_guard<SharedResourcesAcquirer> guard(resourcesAcquirer_);
+          e.setSharedResourcesAcquirer(&resourcesAcquirer_);
           EventSignalsSentry sentry(act,mcc);
           this->produce(e, c);
         }
@@ -137,12 +138,12 @@ namespace edm {
     
     void
     EDProducerBase::doPreForkReleaseResources() {
-      //preForkReleaseResources();
+      preForkReleaseResources();
     }
     
     void
     EDProducerBase::doPostForkReacquireResources(unsigned int iChildIndex, unsigned int iNumberOfChildren) {
-      //postForkReacquireResources(iChildIndex, iNumberOfChildren);
+      postForkReacquireResources(iChildIndex, iNumberOfChildren);
     }
     
     void EDProducerBase::doBeginRun_(Run const& rp, EventSetup const& c) {}

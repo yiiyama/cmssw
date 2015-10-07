@@ -37,7 +37,7 @@
 
 #include "L1Trigger/L1TGlobal/interface/MuonTemplate.h"
 #include "L1Trigger/L1TGlobal/interface/CaloTemplate.h"
-#include "CondFormats/L1TObjects/interface/L1GtEnergySumTemplate.h"
+#include "L1Trigger/L1TGlobal/interface/EnergySumTemplate.h"
 #include "CondFormats/L1TObjects/interface/L1GtJetCountsTemplate.h"
 #include "CondFormats/L1TObjects/interface/L1GtCastorTemplate.h"
 #include "CondFormats/L1TObjects/interface/L1GtHfBitCountsTemplate.h"
@@ -164,13 +164,13 @@ public:
     void setVecCaloTemplate(const std::vector<std::vector<CaloTemplate> >&);
 
     //
-    inline const std::vector<std::vector<L1GtEnergySumTemplate> >& vecEnergySumTemplate() const {
+    inline const std::vector<std::vector<EnergySumTemplate> >& vecEnergySumTemplate() const {
 
         return m_vecEnergySumTemplate;
     }
 
     void setVecEnergySumTemplate(
-            const std::vector<std::vector<L1GtEnergySumTemplate> >&);
+            const std::vector<std::vector<EnergySumTemplate> >&);
 
     //
     inline const std::vector<std::vector<L1GtJetCountsTemplate> >& vecJetCountsTemplate() const {
@@ -255,13 +255,13 @@ public:
     void setCorCaloTemplate(const std::vector<std::vector<CaloTemplate> >&);
 
     //
-    inline const std::vector<std::vector<L1GtEnergySumTemplate> >& corEnergySumTemplate() const {
+    inline const std::vector<std::vector<EnergySumTemplate> >& corEnergySumTemplate() const {
 
         return m_corEnergySumTemplate;
     }
 
     void setCorEnergySumTemplate(
-            const std::vector<std::vector<L1GtEnergySumTemplate> >&);
+            const std::vector<std::vector<EnergySumTemplate> >&);
 
     /// get / set the algorithm map (by name)
     inline const AlgorithmMap& gtAlgorithmMap() const {
@@ -432,20 +432,8 @@ private:
             unsigned int num, std::vector<bool>& mipDst,
             std::vector<bool>& isoEnDst, std::vector<bool>& isoReqDst);
 
-    std::string l1t2string( l1t::MenuName );
-    std::string l1t2string( l1t::ScalesKey );
-    std::string l1t2string( l1t::FirmwareVersion );
-    std::string l1t2string( l1t::DateTime );
-    std::string l1t2string( l1t::Label );
-    std::string l1t2string( l1t::Description );
-    std::string l1t2string( l1t::ConditionName );
-    std::string l1t2string( l1t::ConditionType );
-    std::string l1t2string( l1t::EtComparison );
-    std::string l1t2string( l1t::CalorimeterObjectType );
-    std::string l1t2string( l1t::AlgorithmName );
-    std::string l1t2string( l1t::AlgorithmIndex );
-    std::string l1t2string( l1t::AlgorithmEquation );
-    std::string l1t2string( l1t::EtThreshold );
+    template <typename T> std::string l1t2string( T );
+    std::string l1tDateTime2string( l1t::DateTime );
     int l1t2int( l1t::RelativeBx );
 
     /// parse a muon condition
@@ -464,9 +452,12 @@ private:
             unsigned int chipNr = 0, const bool corrFlag = false);
 
     /// parse an "energy sum" condition
-    bool parseEnergySum(XERCES_CPP_NAMESPACE::DOMNode* node,
-            const std::string& name, unsigned int chipNr = 0,
-            const bool corrFlag = false);
+    /* bool parseEnergySum(XERCES_CPP_NAMESPACE::DOMNode* node, */
+    /*         const std::string& name, unsigned int chipNr = 0, */
+    /*         const bool corrFlag = false); */
+
+    bool parseEnergySum( l1t::EnergySumsCondition condEnergySums,
+            unsigned int chipNr = 0, const bool corrFlag = false);
 
     /// parse a "jet counts" condition
     bool parseJetCounts(XERCES_CPP_NAMESPACE::DOMNode* node,
@@ -591,7 +582,7 @@ private:
     /// explicit, due to persistency...
     std::vector<std::vector<MuonTemplate> > m_vecMuonTemplate;
     std::vector<std::vector<CaloTemplate> > m_vecCaloTemplate;
-    std::vector<std::vector<L1GtEnergySumTemplate> > m_vecEnergySumTemplate;
+    std::vector<std::vector<EnergySumTemplate> > m_vecEnergySumTemplate;
     std::vector<std::vector<L1GtJetCountsTemplate> > m_vecJetCountsTemplate;
     std::vector<std::vector<L1GtCastorTemplate> > m_vecCastorTemplate;
     std::vector<std::vector<L1GtHfBitCountsTemplate> > m_vecHfBitCountsTemplate;
@@ -602,7 +593,7 @@ private:
     std::vector<std::vector<CorrelationTemplate> > m_vecCorrelationTemplate;
     std::vector<std::vector<MuonTemplate> > m_corMuonTemplate;
     std::vector<std::vector<CaloTemplate> > m_corCaloTemplate;
-    std::vector<std::vector<L1GtEnergySumTemplate> > m_corEnergySumTemplate;
+    std::vector<std::vector<EnergySumTemplate> > m_corEnergySumTemplate;
 
     /// map containing the physics algorithms (by name)
     AlgorithmMap m_algorithmMap;

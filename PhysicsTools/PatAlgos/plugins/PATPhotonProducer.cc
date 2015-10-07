@@ -17,6 +17,7 @@
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
 
 #include "RecoEgamma/EgammaTools/interface/ConversionTools.h"
+#include "RecoEgamma/EgammaTools/interface/EcalRegressionData.h"
 #include "RecoEcal/EgammaCoreTools/interface/EcalClusterTools.h"
 
 #include "TVector2.h"
@@ -33,8 +34,8 @@ PATPhotonProducer::PATPhotonProducer(const edm::ParameterSet & iConfig) :
 {
   // initialize the configurables
   photonToken_ = consumes<edm::View<reco::Photon> >(iConfig.getParameter<edm::InputTag>("photonSource"));
-  electronToken_ = consumes<reco::GsfElectronCollection>(edm::InputTag("gedGsfElectrons"));
-  hConversionsToken_ = consumes<reco::ConversionCollection>(edm::InputTag("allConversions"));
+  electronToken_ = consumes<reco::GsfElectronCollection>(iConfig.getParameter<edm::InputTag>("electronSource"));
+hConversionsToken_ = consumes<reco::ConversionCollection>(iConfig.getParameter<edm::InputTag>("conversionSource"));
   beamLineToken_ = consumes<reco::BeamSpot>(iConfig.getParameter<edm::InputTag>("beamLineSrc"));
   embedSuperCluster_ = iConfig.getParameter<bool>("embedSuperCluster");
   embedSeedCluster_ = iConfig.getParameter<bool>( "embedSeedCluster" );
@@ -61,6 +62,10 @@ PATPhotonProducer::PATPhotonProducer(const edm::ParameterSet & iConfig) :
   if (addEfficiencies_) {
     efficiencyLoader_ = pat::helper::EfficiencyLoader(iConfig.getParameter<edm::ParameterSet>("efficiencies"), consumesCollector());
   }
+  // PFCluster Isolation maps
+  addPFClusterIso_   = iConfig.getParameter<bool>("addPFClusterIso");
+  ecalPFClusterIsoT_ = consumes<edm::ValueMap<float> >(iConfig.getParameter<edm::InputTag>("ecalPFClusterIsoMap"));
+  hcalPFClusterIsoT_ = consumes<edm::ValueMap<float> >(iConfig.getParameter<edm::InputTag>("hcalPFClusterIsoMap"));
   // photon ID configurables
   addPhotonID_ = iConfig.getParameter<bool>( "addPhotonID" );
   if (addPhotonID_) {
@@ -220,30 +225,22 @@ void PATPhotonProducer::produce(edm::Event & iEvent, const edm::EventSetup & iSe
     
     // Retrieve the corresponding RecHits
 
-    edm::Handle< EcalRecHitCollection > rechitsH ;
-    float cryPhi, cryEta, thetatilt, phitilt;
-    int ieta, iphi;
+   
+    edm::Handle< EcalRecHitCollection > recHitsEBHandle;
+    iEvent.getByToken(reducedBarrelRecHitCollectionToken_,recHitsEBHandle);
+    edm::Handle< EcalRecHitCollection > recHitsEEHandle;
+    iEvent.getByToken(reducedEndcapRecHitCollectionToken_,recHitsEEHandle);
+    
 
-    //what is the difference from itPhoton->isEB()? (TJ) 
-    switch( photonRef->superCluster()->seed()->hitsAndFractions().at(0).first.subdetId() ) {
-    case EcalBarrel:
-      {
-        iEvent.getByToken(reducedBarrelRecHitCollectionToken_,rechitsH);
-        ecl_.localCoordsEB( *photonRef->superCluster()->seed(), *ecalGeometry_, cryEta, cryPhi, ieta, iphi, thetatilt, phitilt);
-      }
-      break;
-    case EcalEndcap:
-      {
-        iEvent.getByToken(reducedEndcapRecHitCollectionToken_,rechitsH);
-      }
-      break;
-    default:
-     edm::LogError("PFECALSuperClusterProducer::calculateRegressedEnergy") << "Supercluster seed is either EB nor EE!" << std::endl;
-    }
-
+    //orginal code would throw an exception via the handle not being valid but now it'll just have a null pointer error
+    //should have little effect, if its not barrel or endcap, something very bad has happened elsewhere anyways
+    const EcalRecHitCollection *recHits = nullptr; 
+    if(photonRef->superCluster()->seed()->hitsAndFractions().at(0).first.subdetId()==EcalBarrel ) recHits = recHitsEBHandle.product();
+    else if( photonRef->superCluster()->seed()->hitsAndFractions().at(0).first.subdetId()==EcalEndcap ) recHits = recHitsEEHandle.product();
+  
 
     EcalRecHitCollection selectedRecHits;
-    const EcalRecHitCollection *recHits = rechitsH.product();
+    
 
     unsigned nSelectedCells = selectedCells.size();
     for (unsigned icell = 0 ; icell < nSelectedCells ; ++icell) {
@@ -318,74 +315,55 @@ void PATPhotonProducer::produce(edm::Event & iEvent, const edm::EventSetup & iSe
     // set seed energy
     aPhoton.setSeedEnergy( photonRef->superCluster()->seed()->energy() );
 
-    // prepare input variables for regression energy correction
-    float maxDR=999., maxDRDPhi=999., maxDRDEta=999., maxDRRawEnergy=0.;
-    float subClusRawE[3], subClusDPhi[3], subClusDEta[3];
-    memset(subClusRawE,0,3*sizeof(float));
-    memset(subClusDPhi,0,3*sizeof(float));
-    memset(subClusDEta,0,3*sizeof(float));
-    size_t iclus=0;
-    for( auto clus = photonRef->superCluster()->clustersBegin()+1; clus != photonRef->superCluster()->clustersEnd(); ++clus ) {
-      const float this_deta = (*clus)->eta() - photonRef->superCluster()->seed()->eta();
-      const float this_dphi = TVector2::Phi_mpi_pi((*clus)->phi() - photonRef->superCluster()->seed()->phi());
-      const float this_dr = std::hypot(this_deta,this_dphi);
-      if(this_dr > maxDR || maxDR == 999.0f) {
-        maxDR = this_dr;
-        maxDRDEta = this_deta;
-        maxDRDPhi = this_dphi;
-        maxDRRawEnergy = (*clus)->energy();
-      }
-      if( iclus++ < 3 ) {
-        subClusRawE[iclus] = (*clus)->energy();
-        subClusDEta[iclus] = this_deta;
-        subClusDPhi[iclus] = this_dphi;
-      }
-    }
-
-
-    const float eMax = EcalClusterTools::eMax( *photonRef->superCluster()->seed(), &*rechitsH );
-    const float e2nd = EcalClusterTools::e2nd( *photonRef->superCluster()->seed(), &*rechitsH );
-    const float e3x3 = EcalClusterTools::e3x3( *photonRef->superCluster()->seed(), &*rechitsH, ecalTopology_ );
-    const float eTop = EcalClusterTools::eTop( *photonRef->superCluster()->seed(), &*rechitsH, ecalTopology_ );
-    const float eBottom = EcalClusterTools::eBottom( *photonRef->superCluster()->seed(), &*rechitsH, ecalTopology_ );
-    const float eLeft = EcalClusterTools::eLeft( *photonRef->superCluster()->seed(), &*rechitsH, ecalTopology_ );
-    const float eRight = EcalClusterTools::eRight( *photonRef->superCluster()->seed(), &*rechitsH, ecalTopology_ );
-    std::vector<float> vCov = EcalClusterTools::localCovariances( *photonRef->superCluster()->seed(), &*rechitsH, ecalTopology_ );
-    const float see = (isnan(vCov[0]) ? 0. : sqrt(vCov[0]));
-    const float spp = (isnan(vCov[2]) ? 0. : sqrt(vCov[2]));
-    float sep = vCov[1];
+    EcalRegressionData ecalRegData;
+    ecalRegData.fill(*(photonRef->superCluster()),
+		     recHitsEBHandle.product(),recHitsEEHandle.product(),
+		     ecalGeometry_,ecalTopology_,-1);
+    
 
     // set input variables for regression energy correction
-    aPhoton.setEMax( eMax );
-    aPhoton.setE2nd( e2nd );
-    aPhoton.setE3x3( e3x3 );
-    aPhoton.setETop( eTop );
-    aPhoton.setEBottom( eBottom );
-    aPhoton.setELeft( eLeft );
-    aPhoton.setERight( eRight );
-    aPhoton.setSee( see );
-    aPhoton.setSpp( spp );
-    aPhoton.setSep( sep );
+    aPhoton.setEMax( ecalRegData.eMax() );
+    aPhoton.setE2nd( ecalRegData.e2nd() );
+    aPhoton.setE3x3( ecalRegData.e3x3() );
+    aPhoton.setETop( ecalRegData.eTop() );
+    aPhoton.setEBottom( ecalRegData.eBottom() );
+    aPhoton.setELeft( ecalRegData.eLeft() );
+    aPhoton.setERight( ecalRegData.eRight() );
+    aPhoton.setSee( ecalRegData.sigmaIEtaIEta() );
+    aPhoton.setSep( ecalRegData.sigmaIEtaIPhi()*ecalRegData.sigmaIEtaIEta()*ecalRegData.sigmaIPhiIPhi() ); //there is a conflict on what sigmaIEtaIPhi actually is, regression and ID have it differently, this may change in later releases
+    aPhoton.setSpp( ecalRegData.sigmaIPhiIPhi() );
    
-    aPhoton.setMaxDR( maxDR );
-    aPhoton.setMaxDRDPhi( maxDRDPhi );
-    aPhoton.setMaxDRDEta( maxDRDEta );
-    aPhoton.setMaxDRRawEnergy( maxDRRawEnergy );
-    aPhoton.setSubClusRawE1( subClusRawE[0] );
-    aPhoton.setSubClusRawE2( subClusRawE[1] );
-    aPhoton.setSubClusRawE3( subClusRawE[2] );
-    aPhoton.setSubClusDPhi1( subClusDPhi[0] );
-    aPhoton.setSubClusDPhi2( subClusDPhi[1] );
-    aPhoton.setSubClusDPhi3( subClusDPhi[2] );
-    aPhoton.setSubClusDEta1( subClusDEta[0] );
-    aPhoton.setSubClusDEta2( subClusDEta[1] );
-    aPhoton.setSubClusDEta3( subClusDEta[2] );
+    aPhoton.setMaxDR( ecalRegData.maxSubClusDR() );
+    aPhoton.setMaxDRDPhi( ecalRegData.maxSubClusDRDPhi() );
+    aPhoton.setMaxDRDEta( ecalRegData.maxSubClusDRDEta() );
+    aPhoton.setMaxDRRawEnergy( ecalRegData.maxSubClusDRRawEnergy() );
+    aPhoton.setSubClusRawE1( ecalRegData.subClusRawEnergy(EcalRegressionData::SubClusNr::C1) );
+    aPhoton.setSubClusRawE2( ecalRegData.subClusRawEnergy(EcalRegressionData::SubClusNr::C2) );
+    aPhoton.setSubClusRawE3( ecalRegData.subClusRawEnergy(EcalRegressionData::SubClusNr::C3) );
+    aPhoton.setSubClusDPhi1( ecalRegData.subClusDPhi(EcalRegressionData::SubClusNr::C1) );
+    aPhoton.setSubClusDPhi2( ecalRegData.subClusDPhi(EcalRegressionData::SubClusNr::C2) );
+    aPhoton.setSubClusDPhi3( ecalRegData.subClusDPhi(EcalRegressionData::SubClusNr::C3) );
+    aPhoton.setSubClusDEta1( ecalRegData.subClusDEta(EcalRegressionData::SubClusNr::C1) );
+    aPhoton.setSubClusDEta2( ecalRegData.subClusDEta(EcalRegressionData::SubClusNr::C2) );
+    aPhoton.setSubClusDEta3( ecalRegData.subClusDEta(EcalRegressionData::SubClusNr::C3) );
 
-    aPhoton.setCryPhi( cryPhi );
-    aPhoton.setCryEta( cryEta );
-    aPhoton.setIEta( ieta );
-    aPhoton.setIPhi( iphi );
+    aPhoton.setCryPhi( ecalRegData.seedCrysPhiOrY() );
+    aPhoton.setCryEta( ecalRegData.seedCrysEtaOrX() );
+    aPhoton.setIEta( ecalRegData.seedCrysIEtaOrIX() );
+    aPhoton.setIPhi( ecalRegData.seedCrysIPhiOrIY() );
 
+    // Get PFCluster Isolation
+    if (addPFClusterIso_) {
+      edm::Handle<edm::ValueMap<float> > ecalPFClusterIsoMapH;
+      iEvent.getByToken(ecalPFClusterIsoT_, ecalPFClusterIsoMapH);
+      edm::Handle<edm::ValueMap<float> > hcalPFClusterIsoMapH;
+      iEvent.getByToken(hcalPFClusterIsoT_, hcalPFClusterIsoMapH);
+      aPhoton.setEcalPFClusterIso((*ecalPFClusterIsoMapH)[photonRef]);
+      aPhoton.setHcalPFClusterIso((*hcalPFClusterIsoMapH)[photonRef]);
+    } else {
+      aPhoton.setEcalPFClusterIso(-999.);
+      aPhoton.setHcalPFClusterIso(-999.);
+    }
 
     // add the Photon to the vector of Photons
     PATPhotons->push_back(aPhoton);
@@ -410,9 +388,16 @@ void PATPhotonProducer::fillDescriptions(edm::ConfigurationDescriptions & descri
   // input source
   iDesc.add<edm::InputTag>("photonSource", edm::InputTag("no default"))->setComment("input collection");
   iDesc.add<edm::InputTag>("electronSource", edm::InputTag("no default"))->setComment("input collection");
+  iDesc.add<edm::InputTag>("conversionSource", edm::InputTag("allConversions"))->setComment("input collection");
 
   iDesc.add<edm::InputTag>("reducedBarrelRecHitCollection", edm::InputTag("reducedEcalRecHitsEB"));
   iDesc.add<edm::InputTag>("reducedEndcapRecHitCollection", edm::InputTag("reducedEcalRecHitsEE"));  
+  
+  iDesc.ifValue(edm::ParameterDescription<bool>("addPFClusterIso", false, true),
+		true >> (edm::ParameterDescription<edm::InputTag>("ecalPFClusterIsoMap", edm::InputTag("photonEcalPFClusterIsolationProducer"), true) and
+			 edm::ParameterDescription<edm::InputTag>("hcalPFClusterIsoMap", edm::InputTag("photonHcalPFClusterIsolationProducer"),true)) or
+		false >> (edm::ParameterDescription<edm::InputTag>("ecalPFClusterIsoMap", edm::InputTag(""), true) and
+			  edm::ParameterDescription<edm::InputTag>("hcalPFClusterIsoMap", edm::InputTag(""),true)));
   
   iDesc.add<bool>("embedSuperCluster", true)->setComment("embed external super cluster");
   iDesc.add<bool>("embedSeedCluster", true)->setComment("embed external seed cluster");

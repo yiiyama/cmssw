@@ -63,13 +63,12 @@ topDiLeptonHLTOfflineDQM = cms.EDAnalyzer("TopDiLeptonHLTOfflineDQM",
     ## will be empty
     triggerExtras = cms.PSet(
         src = cms.InputTag("TriggerResults","","HLT"),
-        pathsELECMU = cms.vstring([ 'HLT_Mu23_TrkIsoVVL_Ele12_Gsf_CaloId_TrackId_Iso_MediumWP_v',
-                                    'HLT_Mu8_TrkIsoVVL_Ele23_Gsf_CaloId_TrackId_Iso_MediumWP_v']),
-        pathsDIMUON = cms.vstring([ 'HLT_Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_v',
-                                    'HLT_Mu17_Mu8_v']),
-        pathsDIELEC = cms.vstring([ 'HLT_DoubleEle33_CaloIdL_GsfTrkIdVL_v',
-                                    'HLT_Ele23_Ele12_CaloId_TrackId_iso_v',
-                                    'HLT_Ele17_Ele8_Gsf_v'])
+        pathsELECMU = cms.vstring([ 'HLT_Mu8_TrkIsoVVL_Ele23_CaloIdL_TrackIdL_IsoVL_v', 
+                                    'HLT_Mu23_TrkIsoVVL_Ele12_CaloIdL_TrackIdL_IsoVL_v']),
+        pathsDIMUON = cms.vstring([ 'HLT_Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_DZ_v',
+                                    'HLT_Mu17_TrkIsoVVL_TkMu8_TrkIsoVVL_DZ_v']),
+        pathsDIELEC = cms.vstring([ 'HLT_Ele23_Ele12_CaloIdL_TrackIdL_IsoVL_DZ_v', 
+                                    'HLT_Ele23_Ele12_CaloIdL_TrackIdL_IsoVL_v'])
     )    
   ),
                                   
@@ -84,7 +83,7 @@ topDiLeptonHLTOfflineDQM = cms.EDAnalyzer("TopDiLeptonHLTOfflineDQM",
     ## [optional] : when omitted no preselection is applied
     trigger = cms.PSet(
         src    = cms.InputTag("TriggerResults","","HLT"),
-        select = cms.vstring(['HLT_Mu23_TrkIsoVVL_Ele12_Gsf_CaloId_TrackId_Iso_MediumWP_v','HLT_Mu8_TrkIsoVVL_Ele23_Gsf_CaloId_TrackId_Iso_MediumWP_v','HLT_Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_v','HLT_Mu17_Mu8_v','HLT_DoubleEle33_CaloIdL_GsfTrkIdVL_v','HLT_Ele23_Ele12_CaloId_TrackId_iso_v','HLT_Ele17_Ele8_Gsf_v'])
+        select = cms.vstring(['HLT_Mu8_TrkIsoVVL_Ele23_CaloIdL_TrackIdL_IsoVL_v', 'HLT_Mu23_TrkIsoVVL_Ele12_CaloIdL_TrackIdL_IsoVL_v', 'HLT_Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_DZ_v', 'HLT_Mu17_TrkIsoVVL_TkMu8_TrkIsoVVL_DZ_v', 'HLT_Ele23_Ele12_CaloIdL_TrackIdL_IsoVL_DZ_v', 'HLT_Ele23_Ele12_CaloIdL_TrackIdL_IsoVL_v'])
     ),
     ## [optional] : when omitted no preselection is applied
     vertex = cms.PSet(
@@ -191,13 +190,12 @@ DiMuonHLTOfflineDQM = cms.EDAnalyzer("TopDiLeptonHLTOfflineDQM",
     ## will be empty
     triggerExtras = cms.PSet(
         src = cms.InputTag("TriggerResults","","HLT"),
-        pathsELECMU = cms.vstring([ 'HLT_Mu23_TrkIsoVVL_Ele12_Gsf_CaloId_TrackId_Iso_MediumWP_v',
-                                    'HLT_Mu8_TrkIsoVVL_Ele23_Gsf_CaloId_TrackId_Iso_MediumWP_v']),
-        pathsDIMUON = cms.vstring([ 'HLT_Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_v',
-                                    'HLT_Mu17_Mu8_v']),
-        pathsDIELEC = cms.vstring([ 'HLT_DoubleEle33_CaloIdL_GsfTrkIdVL_v',
-                                    'HLT_Ele23_Ele12_CaloId_TrackId_iso_v',
-                                    'HLT_Ele17_Ele8_Gsf_v'])
+        pathsELECMU = cms.vstring([ 'HLT_Mu8_TrkIsoVVL_Ele23_CaloIdL_TrackIdL_IsoVL_v', 
+                                    'HLT_Mu23_TrkIsoVVL_Ele12_CaloIdL_TrackIdL_IsoVL_v']),
+        pathsDIMUON = cms.vstring([ 'HLT_Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_DZ_v',
+                                    'HLT_Mu17_TrkIsoVVL_TkMu8_TrkIsoVVL_DZ_v']),
+        pathsDIELEC = cms.vstring([ 'HLT_Ele23_Ele12_CaloIdL_TrackIdL_IsoVL_DZ_v', 
+                                    'HLT_Ele23_Ele12_CaloIdL_TrackIdL_IsoVL_v'])
     )    
   ),
                                   
@@ -212,7 +210,8 @@ DiMuonHLTOfflineDQM = cms.EDAnalyzer("TopDiLeptonHLTOfflineDQM",
     ## [optional] : when omitted no preselection is applied
     trigger = cms.PSet(
         src    = cms.InputTag("TriggerResults","","HLT"),
-        select = cms.vstring(['HLT_Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_v','HLT_Mu17_Mu8_v']),
+        select = cms.vstring(['HLT_Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_DZ_v',
+                              'HLT_Mu17_TrkIsoVVL_TkMu8_TrkIsoVVL_DZ_v']),
     ),
     ## [optional] : when omitted no preselection is applied
     vertex = cms.PSet(
@@ -325,13 +324,12 @@ DiElectronHLTOfflineDQM = cms.EDAnalyzer("TopDiLeptonHLTOfflineDQM",
     ## will be empty
     triggerExtras = cms.PSet(
         src = cms.InputTag("TriggerResults","","HLT"),
-        pathsELECMU = cms.vstring([ 'HLT_Mu23_TrkIsoVVL_Ele12_Gsf_CaloId_TrackId_Iso_MediumWP_v',
-                                    'HLT_Mu8_TrkIsoVVL_Ele23_Gsf_CaloId_TrackId_Iso_MediumWP_v']),
-        pathsDIMUON = cms.vstring([ 'HLT_Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_v',
-                                    'HLT_Mu17_Mu8_v']),
-        pathsDIELEC = cms.vstring([ 'HLT_DoubleEle33_CaloIdL_GsfTrkIdVL_v',
-                                    'HLT_Ele23_Ele12_CaloId_TrackId_iso_v',
-                                    'HLT_Ele17_Ele8_Gsf_v'])
+        pathsELECMU = cms.vstring([ 'HLT_Mu8_TrkIsoVVL_Ele23_CaloIdL_TrackIdL_IsoVL_v', 
+                                    'HLT_Mu23_TrkIsoVVL_Ele12_CaloIdL_TrackIdL_IsoVL_v']),
+        pathsDIMUON = cms.vstring([ 'HLT_Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_DZ_v',
+                                    'HLT_Mu17_TrkIsoVVL_TkMu8_TrkIsoVVL_DZ_v']),
+        pathsDIELEC = cms.vstring([ 'HLT_Ele23_Ele12_CaloIdL_TrackIdL_IsoVL_DZ_v', 
+                                    'HLT_Ele23_Ele12_CaloIdL_TrackIdL_IsoVL_v'])
     )    
   ),
                                   
@@ -346,7 +344,8 @@ DiElectronHLTOfflineDQM = cms.EDAnalyzer("TopDiLeptonHLTOfflineDQM",
     ## [optional] : when omitted no preselection is applied
     trigger = cms.PSet(
         src    = cms.InputTag("TriggerResults","","HLT"),
-        select = cms.vstring(['HLT_DoubleEle33_CaloIdL_GsfTrkIdVL_v','HLT_Ele23_Ele12_CaloId_TrackId_iso_v','HLT_Ele17_Ele8_Gsf_v'])
+        select = cms.vstring(['HLT_Ele23_Ele12_CaloIdL_TrackIdL_IsoVL_DZ_v', 
+                              'HLT_Ele23_Ele12_CaloIdL_TrackIdL_IsoVL_v'])
     ),
     ## [optional] : when omitted no preselection is applied
     vertex = cms.PSet(
@@ -460,13 +459,12 @@ ElecMuonHLTOfflineDQM = cms.EDAnalyzer("TopDiLeptonHLTOfflineDQM",
     ## will be empty
     triggerExtras = cms.PSet(
         src = cms.InputTag("TriggerResults","","HLT"),
-        pathsELECMU = cms.vstring([ 'HLT_Mu23_TrkIsoVVL_Ele12_Gsf_CaloId_TrackId_Iso_MediumWP_v',
-                                    'HLT_Mu8_TrkIsoVVL_Ele23_Gsf_CaloId_TrackId_Iso_MediumWP_v']),
-        pathsDIMUON = cms.vstring([ 'HLT_Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_v',
-                                    'HLT_Mu17_Mu8_v']),
-        pathsDIELEC = cms.vstring([ 'HLT_DoubleEle33_CaloIdL_GsfTrkIdVL_v',
-                                    'HLT_Ele23_Ele12_CaloId_TrackId_iso_v',
-                                    'HLT_Ele17_Ele8_Gsf_v'])
+        pathsELECMU = cms.vstring([ 'HLT_Mu8_TrkIsoVVL_Ele23_CaloIdL_TrackIdL_IsoVL_v', 
+                                    'HLT_Mu23_TrkIsoVVL_Ele12_CaloIdL_TrackIdL_IsoVL_v']),
+        pathsDIMUON = cms.vstring([ 'HLT_Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_DZ_v',
+                                    'HLT_Mu17_TrkIsoVVL_TkMu8_TrkIsoVVL_DZ_v']),
+        pathsDIELEC = cms.vstring([ 'HLT_Ele23_Ele12_CaloIdL_TrackIdL_IsoVL_DZ_v', 
+                                    'HLT_Ele23_Ele12_CaloIdL_TrackIdL_IsoVL_v'])
     )    
   ),
                                   
@@ -481,7 +479,8 @@ ElecMuonHLTOfflineDQM = cms.EDAnalyzer("TopDiLeptonHLTOfflineDQM",
     ## [optional] : when omitted no preselection is applied
     trigger = cms.PSet(
         src    = cms.InputTag("TriggerResults","","HLT"),
-        select = cms.vstring(['HLT_Mu23_TrkIsoVVL_Ele12_Gsf_CaloId_TrackId_Iso_MediumWP_v','HLT_Mu8_TrkIsoVVL_Ele23_Gsf_CaloId_TrackId_Iso_MediumWP_v'])
+        select = cms.vstring(['HLT_Mu8_TrkIsoVVL_Ele23_CaloIdL_TrackIdL_IsoVL_v', 
+                              'HLT_Mu23_TrkIsoVVL_Ele12_CaloIdL_TrackIdL_IsoVL_v'])
     ),
     ## [optional] : when omitted no preselection is applied
     vertex = cms.PSet(

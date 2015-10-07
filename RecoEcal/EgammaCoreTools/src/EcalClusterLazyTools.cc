@@ -26,11 +26,27 @@ EcalClusterLazyToolsBase::EcalClusterLazyToolsBase( const edm::Event &ev, const 
 
   ebRHToken_ = token1;
   eeRHToken_ = token2;
+ 
+  getGeometry( es );
+  getTopology( es );
+  getEBRecHits( ev );
+  getEERecHits( ev );
+  getIntercalibConstants( es );
+  getADCToGeV ( es );
+  getLaserDbService ( es );
+}
+
+EcalClusterLazyToolsBase::EcalClusterLazyToolsBase( const edm::Event &ev, const edm::EventSetup &es, edm::EDGetTokenT<EcalRecHitCollection> token1, edm::EDGetTokenT<EcalRecHitCollection> token2, edm::EDGetTokenT<EcalRecHitCollection> token3) {
+
+  ebRHToken_ = token1;
+  eeRHToken_ = token2;
+  esRHToken_ = token3;
 
   getGeometry( es );
   getTopology( es );
   getEBRecHits( ev );
   getEERecHits( ev );
+  getESRecHits( ev );
   getIntercalibConstants( es );
   getADCToGeV ( es );
   getLaserDbService ( es );
@@ -317,7 +333,7 @@ std::vector<float> EcalClusterLazyToolsBase::getESHits(double X, double Y, doubl
     for (int i=0; i<31; ++i) esHits.push_back(0);
   } else {
     it = rechits_map.find(strip);
-    if (it->second.energy() > 1.0e-10 && it != rechits_map.end()) esHits.push_back(it->second.energy());
+    if (it != rechits_map.end() && it->second.energy() > 1.0e-10) esHits.push_back(it->second.energy());
     else esHits.push_back(0);
     //cout<<"center : "<<strip<<" "<<it->second.energy()<<endl;
 
@@ -328,7 +344,7 @@ std::vector<float> EcalClusterLazyToolsBase::getESHits(double X, double Y, doubl
         next = theESNav.east();
         if (next != ESDetId(0)) {
           it = rechits_map.find(next);
-          if (it->second.energy() > 1.0e-10 && it != rechits_map.end()) esHits.push_back(it->second.energy());
+          if (it != rechits_map.end() && it->second.energy() > 1.0e-10) esHits.push_back(it->second.energy());
           else esHits.push_back(0);
           //cout<<"east "<<i<<" : "<<next<<" "<<it->second.energy()<<endl;
         } else {
@@ -345,7 +361,7 @@ std::vector<float> EcalClusterLazyToolsBase::getESHits(double X, double Y, doubl
         next = theESNav.west();
         if (next != ESDetId(0)) {
           it = rechits_map.find(next);
-          if (it->second.energy() > 1.0e-10 && it != rechits_map.end()) esHits.push_back(it->second.energy());
+          if (it != rechits_map.end() && it->second.energy() > 1.0e-10) esHits.push_back(it->second.energy());
           else esHits.push_back(0);
           //cout<<"west "<<i<<" : "<<next<<" "<<it->second.energy()<<endl;
         } else {
@@ -363,7 +379,7 @@ std::vector<float> EcalClusterLazyToolsBase::getESHits(double X, double Y, doubl
         next = theESNav.north();
         if (next != ESDetId(0)) {
           it = rechits_map.find(next);
-          if (it->second.energy() > 1.0e-10 && it != rechits_map.end()) esHits.push_back(it->second.energy());
+          if (it != rechits_map.end() && it->second.energy() > 1.0e-10) esHits.push_back(it->second.energy());
           else esHits.push_back(0);
           //cout<<"north "<<i<<" : "<<next<<" "<<it->second.energy()<<endl;
         } else {
@@ -380,7 +396,7 @@ std::vector<float> EcalClusterLazyToolsBase::getESHits(double X, double Y, doubl
         next = theESNav.south();
         if (next != ESDetId(0)) {
           it = rechits_map.find(next);
-          if (it->second.energy() > 1.0e-10 && it != rechits_map.end()) esHits.push_back(it->second.energy());
+          if (it != rechits_map.end() && it->second.energy() > 1.0e-10) esHits.push_back(it->second.energy());
           else esHits.push_back(0);
           //cout<<"south "<<i<<" : "<<next<<" "<<it->second.energy()<<endl;
         } else {

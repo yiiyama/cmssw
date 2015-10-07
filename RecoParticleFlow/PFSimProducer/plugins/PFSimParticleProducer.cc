@@ -55,8 +55,7 @@
 #include "DataFormats/ParticleFlowReco/interface/PFRecTrack.h"
 #include "DataFormats/TrackReco/interface/Track.h" 
 #include "DataFormats/TrackReco/interface/TrackFwd.h"
-#include "DataFormats/TrackerRecHit2D/interface/SiTrackerGSMatchedRecHit2D.h" 
-#include "DataFormats/TrackerRecHit2D/interface/SiTrackerGSMatchedRecHit2DCollection.h"
+#include "DataFormats/TrackerRecHit2D/interface/FastTrackerRecHit.h" 
 
 #include <set>
 #include <sstream>
@@ -555,17 +554,19 @@ void PFSimParticleProducer::getSimIDs( const TrackHandle& trackh,
       for (trackingRecHit_iterator it = rhitbeg;  
 	   it != rhitend; it++){
 
-	if( it->get()->isValid() ){
+	if( (*it)->isValid() ){
 
-	  const SiTrackerGSMatchedRecHit2D * rechit 
-	    = (const SiTrackerGSMatchedRecHit2D*) (it->get());
+	  const FastTrackerRecHit * rechit 
+	    = (const FastTrackerRecHit*) (*it);
 	  
 // 	  cout <<  "rechit" 	       
 // 	       << " corresponding simId " 
 // 	       << rechit->simtrackId() 
 // 	       << endl;
 
-	  recTrackSimID.push_back( rechit->simtrackId() );
+	  for(unsigned int st_index=0;st_index<rechit->nSimTrackIds();++st_index){
+	      recTrackSimID.push_back(rechit->simTrackId(st_index));
+	  }
 	  break;
 	}
       }//loop track rechit

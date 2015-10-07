@@ -61,6 +61,7 @@ namespace edm {
     void writeProductDescriptionRegistry();
     void writeParentageRegistry();
     void writeBranchIDListRegistry();
+    void writeThinnedAssociationsHelper();
     void writeProductDependencies();
 
     void finishEndFile();
@@ -100,7 +101,7 @@ namespace edm {
     std::string file_;
     std::string logicalFile_;
     JobReport::Token reportToken_;
-    PoolOutputModule const* om_;
+    PoolOutputModule* om_;
     int whyNotFastClonable_;
     bool canFastCloneAux_;
     std::shared_ptr<TFile> filePtr_;

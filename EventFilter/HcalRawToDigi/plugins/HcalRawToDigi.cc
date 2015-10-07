@@ -3,6 +3,8 @@ using namespace std;
 #include "DataFormats/FEDRawData/interface/FEDNumbering.h"
 #include "DataFormats/HcalDigi/interface/HcalDigiCollections.h"
 #include "FWCore/Framework/interface/ESHandle.h"
+#include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
+#include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
 #include "CalibFormats/HcalObjects/interface/HcalDbService.h"
 #include "CalibFormats/HcalObjects/interface/HcalDbRecord.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
@@ -24,11 +26,16 @@ HcalRawToDigi::HcalRawToDigi(edm::ParameterSet const& conf):
   unpackerMode_(conf.getUntrackedParameter<int>("UnpackerMode",0)),
   expectedOrbitMessageTime_(conf.getUntrackedParameter<int>("ExpectedOrbitMessageTime",-1))
 {
+  electronicsMapLabel_ = conf.getParameter<std::string>("ElectronicsMap");
   tok_data_ = consumes<FEDRawDataCollection>(conf.getParameter<edm::InputTag>("InputLabel"));
 
   if (fedUnpackList_.empty()) {
     for (int i=FEDNumbering::MINHCALFEDID; i<=FEDNumbering::MAXHCALFEDID; i++)
       fedUnpackList_.push_back(i);
+    // HF uTCA
+    fedUnpackList_.push_back(1118);
+    fedUnpackList_.push_back(1120);
+    fedUnpackList_.push_back(1122);
   } 
   
   unpacker_.setExpectedOrbitMessageTime(expectedOrbitMessageTime_);
@@ -51,6 +58,7 @@ HcalRawToDigi::HcalRawToDigi(edm::ParameterSet const& conf):
     produces<ZDCDigiCollection>();
   if (unpackTTP_)
     produces<HcalTTPDigiCollection>();
+  produces<QIE10DigiCollection>();
 
   memset(&stats_,0,sizeof(stats_));
 
@@ -58,6 +66,26 @@ HcalRawToDigi::HcalRawToDigi(edm::ParameterSet const& conf):
 
 // Virtual destructor needed.
 HcalRawToDigi::~HcalRawToDigi() { }  
+
+void HcalRawToDigi::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
+  edm::ParameterSetDescription desc;
+  desc.addUntracked<int>("HcalFirstFED",int(FEDNumbering::MINHCALFEDID));
+  desc.add<int>("firstSample",0);
+  desc.add<int>("lastSample",9);
+  desc.add<bool>("FilterDataQuality",true);
+  desc.addUntracked<std::vector<int>>("FEDs", std::vector<int>());
+  desc.addUntracked<bool>("UnpackZDC",true);
+  desc.addUntracked<bool>("UnpackCalib",true);
+  desc.addUntracked<bool>("UnpackTTP",true);
+  desc.addUntracked<bool>("silent",true);
+  desc.addUntracked<bool>("ComplainEmptyData",false);
+  desc.addUntracked<int>("UnpackerMode",0);
+  desc.addUntracked<int>("ExpectedOrbitMessageTime",-1);
+  desc.add<edm::InputTag>("InputLabel",edm::InputTag("rawDataCollector"));
+  desc.add<std::string>("ElectronicsMap","");
+  descriptions.add("hcalRawToDigi",desc);
+}
+
 
 // Functions that gets called by framework every event
 void HcalRawToDigi::produce(edm::Event& e, const edm::EventSetup& es)
@@ -68,7 +96,9 @@ void HcalRawToDigi::produce(edm::Event& e, const edm::EventSetup& es)
   // get the mapping
   edm::ESHandle<HcalDbService> pSetup;
   es.get<HcalDbRecord>().get( pSetup );
-  const HcalElectronicsMap* readoutMap=pSetup->getHcalMapping();
+  edm::ESHandle<HcalElectronicsMap> item;
+  es.get<HcalElectronicsMapRcd>().get(electronicsMapLabel_, item);
+  const HcalElectronicsMap* readoutMap = item.product();
   
   // Step B: Create empty output  : three vectors for three classes...
   std::vector<HBHEDataFrame> hbhe;
@@ -151,6 +181,10 @@ void HcalRawToDigi::produce(edm::Event& e, const edm::EventSetup& es)
   std::auto_ptr<HODigiCollection> ho_prod(new HODigiCollection());
   std::auto_ptr<HcalTrigPrimDigiCollection> htp_prod(new HcalTrigPrimDigiCollection());  
   std::auto_ptr<HOTrigPrimDigiCollection> hotp_prod(new HOTrigPrimDigiCollection());  
+  if (colls.qie10 == 0) {
+    colls.qie10 = new QIE10DigiCollection(); 
+  }
+  std::auto_ptr<QIE10DigiCollection> qie10_prod(colls.qie10);
 
   hbhe_prod->swap_contents(hbhe);
   hf_prod->swap_contents(hf);
@@ -177,12 +211,14 @@ void HcalRawToDigi::produce(edm::Event& e, const edm::EventSetup& es)
   hf_prod->sort();
   htp_prod->sort();
   hotp_prod->sort();
+  qie10_prod->sort();
 
   e.put(hbhe_prod);
   e.put(ho_prod);
   e.put(hf_prod);
   e.put(htp_prod);
   e.put(hotp_prod);
+  e.put(qie10_prod);
 
   /// calib
   if (unpackCalib_) {

@@ -1,4 +1,5 @@
 #include "RecoPixelVertexing/PixelTriplets/plugins/PixelTripletLargeTipGenerator.h"
+#include "RecoTracker/TkHitPairs/interface/HitPairGeneratorFromLayerPair.h"
 
 #include "RecoPixelVertexing/PixelTriplets/interface/ThirdHitPredictionFromCircle.h"
 #include "ThirdHitRZPrediction.h"
@@ -7,6 +8,7 @@
 
 #include "Geometry/TrackerGeometryBuilder/interface/TrackerGeometry.h"
 #include "Geometry/Records/interface/TrackerDigiGeometryRecord.h"
+#include "Geometry/Records/interface/TrackerTopologyRcd.h"
 #include "RecoPixelVertexing/PixelTriplets/plugins/ThirdHitCorrection.h"
 #include "RecoTracker/TkHitPairs/interface/RecHitsSortedInPhi.h"
 
@@ -38,33 +40,21 @@ namespace {
 
 constexpr double nSigmaRZ = 3.4641016151377544; // sqrt(12.)
 constexpr double nSigmaPhi = 3.;
-static float fnSigmaRZ = std::sqrt(12.f);
+static const float fnSigmaRZ = std::sqrt(12.f);
 
 PixelTripletLargeTipGenerator::PixelTripletLargeTipGenerator(const edm::ParameterSet& cfg, edm::ConsumesCollector& iC)
-  : thePairGenerator(0),
-    theLayerCache(0),
+  : HitTripletGeneratorFromPairAndLayers(cfg),
     useFixedPreFiltering(cfg.getParameter<bool>("useFixedPreFiltering")),
     extraHitRZtolerance(cfg.getParameter<double>("extraHitRZtolerance")),
     extraHitRPhitolerance(cfg.getParameter<double>("extraHitRPhitolerance")),
     useMScat(cfg.getParameter<bool>("useMultScattering")),
     useBend(cfg.getParameter<bool>("useBending"))
-{    theMaxElement=cfg.getParameter<unsigned int>("maxElement");
+{
   if (useFixedPreFiltering)
     dphi = cfg.getParameter<double>("phiPreFiltering");
 }
 
-void PixelTripletLargeTipGenerator::init(const HitPairGenerator & pairs,
-					 LayerCacheType *layerCache)
-{
-  thePairGenerator = pairs.clone();
-  theLayerCache = layerCache;
-}
-
-void PixelTripletLargeTipGenerator::setSeedingLayers(SeedingLayerSetsHits::SeedingLayerSet pairLayers,
-                                                     std::vector<SeedingLayerSetsHits::SeedingLayer> thirdLayers) {
-  thePairGenerator->setSeedingLayers(pairLayers);
-  theLayers = thirdLayers;
-}
+PixelTripletLargeTipGenerator::~PixelTripletLargeTipGenerator() {}
 
 namespace {
   inline
@@ -83,44 +73,51 @@ namespace {
 void PixelTripletLargeTipGenerator::hitTriplets(const TrackingRegion& region, 
 						OrderedHitTriplets & result,
 						const edm::Event & ev,
-						const edm::EventSetup& es)
+						const edm::EventSetup& es,
+						SeedingLayerSetsHits::SeedingLayerSet pairLayers,
+						const std::vector<SeedingLayerSetsHits::SeedingLayer>& thirdLayers)
 { 
   edm::ESHandle<TrackerGeometry> tracker;
   es.get<TrackerDigiGeometryRecord>().get(tracker);
 
   //Retrieve tracker topology from geometry
   edm::ESHandle<TrackerTopology> tTopoHand;
-  es.get<IdealGeometryRecord>().get(tTopoHand);
+  es.get<TrackerTopologyRcd>().get(tTopoHand);
   const TrackerTopology *tTopo=tTopoHand.product();
 
-  auto const & doublets = thePairGenerator->doublets(region,ev,es);
+  auto const & doublets = thePairGenerator->doublets(region,ev,es, pairLayers);
   
   if (doublets.empty()) return;
    
   auto outSeq =  doublets.detLayer(HitDoublets::outer)->seqNum();
 
 
-  int size = theLayers.size();
+  int size = thirdLayers.size();
 
 
   using NodeInfo = KDTreeNodeInfo<unsigned int>;
   std::vector<NodeInfo > layerTree; // re-used throughout
   std::vector<unsigned int> foundNodes; // re-used throughout
   foundNodes.reserve(100);
+  #ifdef __clang__
+  std::vector<KDTreeLinkerAlgo<unsigned int>> hitTree(size);
+  std::vector<LayerRZPredictions> mapPred(size);
+  #else
   KDTreeLinkerAlgo<unsigned int> hitTree[size];
+  LayerRZPredictions mapPred[size];
+  #endif
 
   float rzError[size]; //save maximum errors
   float maxphi = Geom::ftwoPi(), minphi = -maxphi; //increase to cater for any range
 
-  LayerRZPredictions mapPred[size];
 
   const RecHitsSortedInPhi * thirdHitMap[size];
 
   for(int il = 0; il < size; il++) {
-    thirdHitMap[il] = &(*theLayerCache)(theLayers[il], region, ev, es);
+    thirdHitMap[il] = &(*theLayerCache)(thirdLayers[il], region, ev, es);
     auto const & hits = *thirdHitMap[il];
  
-    const DetLayer *layer = theLayers[il].detLayer();
+    const DetLayer *layer = thirdLayers[il].detLayer();
     LayerRZPredictions &predRZ = mapPred[il];
     predRZ.line.initLayer(layer);
     predRZ.helix1.initLayer(layer);
@@ -175,7 +172,7 @@ void PixelTripletLargeTipGenerator::hitTriplets(const TrackingRegion& region,
 
     for(int il = 0; il < size; il++) {
       if (hitTree[il].empty()) continue; // Don't bother if no hits
-      const DetLayer *layer = theLayers[il].detLayer();
+      const DetLayer *layer = thirdLayers[il].detLayer();
       bool barrelLayer = layer->isBarrel();
       
       Range curvature = generalCurvature;
@@ -302,7 +299,7 @@ void PixelTripletLargeTipGenerator::hitTriplets(const TrackingRegion& region,
       MatchedHitRZCorrectionFromBending l2rzFixup(doublets.hit(ip,HitDoublets::outer)->det()->geographicalId(), tTopo);
       MatchedHitRZCorrectionFromBending l3rzFixup = predRZ.rzPositionFixup;
 
-      thirdHitMap[il] = &(*theLayerCache)(theLayers[il], region, ev, es);
+      thirdHitMap[il] = &(*theLayerCache)(thirdLayers[il], region, ev, es);
       auto const & hits = *thirdHitMap[il];
       for (auto KDdata : foundNodes) {
 	GlobalPoint p3 = hits.gp(KDdata); 

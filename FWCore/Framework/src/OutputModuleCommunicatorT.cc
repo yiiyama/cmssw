@@ -84,8 +84,8 @@ namespace edm {
   }
   
   template<typename T>
-  void OutputModuleCommunicatorT<T>::selectProducts(edm::ProductRegistry const& preg) {
-    module().selectProducts(preg);
+  void OutputModuleCommunicatorT<T>::selectProducts(edm::ProductRegistry const& preg, ThinnedAssociationsHelper const& helper) {
+    module().selectProducts(preg, helper);
   }
   
   template<typename T>
@@ -106,6 +106,9 @@ namespace edm {
     std::unique_ptr<edm::OutputModuleCommunicator> createCommunicatorIfNeeded(::edm::OutputModule * iMod){
       return std::move(std::unique_ptr<edm::OutputModuleCommunicator>{ new OutputModuleCommunicatorT<edm::OutputModule>(iMod) });
     }
+    std::unique_ptr<edm::OutputModuleCommunicator> createCommunicatorIfNeeded(::edm::global::OutputModuleBase * iMod){
+      return std::move(std::unique_ptr<edm::OutputModuleCommunicator>{ new OutputModuleCommunicatorT<edm::global::OutputModuleBase>(iMod) });
+    }
     std::unique_ptr<edm::OutputModuleCommunicator> createCommunicatorIfNeeded(::edm::one::OutputModuleBase * iMod){
       return std::move(std::unique_ptr<edm::OutputModuleCommunicator>{ new OutputModuleCommunicatorT<edm::one::OutputModuleBase>(iMod) });
     }
@@ -113,9 +116,11 @@ namespace edm {
 }
 
 #include "FWCore/Framework/interface/OutputModule.h"
+#include "FWCore/Framework/interface/global/OutputModuleBase.h"
 #include "FWCore/Framework/interface/one/OutputModuleBase.h"
 
 namespace edm {
   template class OutputModuleCommunicatorT<OutputModule>;
   template class OutputModuleCommunicatorT<one::OutputModuleBase>;
+  template class OutputModuleCommunicatorT<global::OutputModuleBase>;
 }

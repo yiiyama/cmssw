@@ -28,7 +28,7 @@ namespace ora {
 
     void run( const std::string& connectionString ){
       const char* authEnv = ::getenv( "CORAL_AUTH_PATH" );
-      std::string defaultPath("/afs/cern.ch/cms/DB/conddb/int9r");
+      std::string defaultPath("/afs/cern.ch/cms/DB/conddb");
       std::string pathEnv(std::string("CORAL_AUTH_PATH=")+defaultPath);
       if( !authEnv ){
 	//setting environment variable: if pathEnv is defined in this scope (as it should be), it does not work!! (??)
@@ -44,11 +44,12 @@ namespace ora {
 	serializer.release();
       }catch ( const std::exception& exc ){
 	std::cout << "### TEST "<<m_testName<<" ERROR: "<<exc.what()<<std::endl;      
+        exit(-1);
       }
     }
 
     void run(){
-      std::string connStr("oracle://cms_orcoff_int/CMS_COND_UNIT_TESTS");
+      std::string connStr("oracle://cms_orcoff_prep/CMS_COND_UNIT_TESTS");
       const char* envVar = ::getenv( "ORA_TEST_DB" );
       if( envVar ){
         connStr = std::string(envVar);

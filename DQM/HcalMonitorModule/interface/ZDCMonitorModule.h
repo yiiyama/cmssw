@@ -5,12 +5,12 @@
  * \file ZDCMonitorModule.h
  *
 
- * \author 
+ * \author  Quan Wang
  *
-*/
+ */
 
 #include "FWCore/Framework/interface/Frameworkfwd.h"
-#include "FWCore/Framework/interface/EDAnalyzer.h"
+#include "DQMServices/Core/interface/DQMEDAnalyzer.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
 #include "FWCore/Framework/interface/ESHandle.h"
@@ -22,157 +22,155 @@
 #include "CalibFormats/HcalObjects/interface/HcalDbRecord.h"
 
 #include "DataFormats/HcalDigi/interface/HcalUnpackerReport.h"
+#include "DataFormats/Provenance/interface/RunLumiEventNumber.h"
+
 #include "DQM/HcalMonitorTasks/interface/HcalZDCMonitor.h"
 
 #include "FWCore/Utilities/interface/CPUTimer.h"
 
 class MonitorElement;
-class DQMStore;
 class  HcalZDCMonitor;
 
 #include <iostream>
 #include <fstream>
 
-class ZDCMonitorModule : public edm::EDAnalyzer{
+class ZDCMonitorModule : public DQMEDAnalyzer {
 
 public:
-  
-  // Constructor
-  ZDCMonitorModule(const edm::ParameterSet& ps);
 
-  // Destructor
-  ~ZDCMonitorModule();
-  
- protected:
-  
-  // Analyze
-  void analyze(const edm::Event& e, const edm::EventSetup& c);
-  
-  // BeginJob
-  void beginJob();
-  
-  // BeginRun
-  void beginRun(const edm::Run& run, const edm::EventSetup& c);
+	// Constructor
+	ZDCMonitorModule(const edm::ParameterSet& ps);
 
-  // Begin LumiBlock
-  void beginLuminosityBlock(const edm::LuminosityBlock& lumiSeg, 
-                            const edm::EventSetup& c) ;
+	// Destructor
+	~ZDCMonitorModule();
 
-  // End LumiBlock
-  void endLuminosityBlock(const edm::LuminosityBlock& lumiSeg, 
-                          const edm::EventSetup& c);
+	void bookHistograms(DQMStore::IBooker &, edm::Run const &, edm::EventSetup const &);
 
-  // EndJob
-  void endJob(void);
-  
-  // EndRun
-  void endRun(const edm::Run& run, const edm::EventSetup& c);
+protected:
 
-  // Reset
-  void reset(void);
+	// Analyze
+	void analyze(const edm::Event& e, const edm::EventSetup& c);
 
-  /// Boolean prescale test for this event
-  bool prescale();
-/*
-  // Check ZDC has FED data
-  void CheckZDCStatus	(const FEDRawDataCollection& rawraw,
-                      	const HcalUnpackerReport& report,
-                      	const HcalElectronicsMap& emap,
-                      	const ZDCDigiCollection& zdcdigi
-                      	);
-*/
- private:
-  std::vector<int> fedss;
-  /********************************************************/
-  //  The following member variables can be specified in  //
-  //  the configuration input file for the process.       //
-  /********************************************************/
+	// Begin LumiBlock
+	void beginLuminosityBlock(const edm::LuminosityBlock& lumiSeg,
+			const edm::EventSetup& c) ;
 
-  /// Prescale variables for restricting the frequency of analyzer
-  /// behavior.  The base class does not implement prescales.
-  /// Set to -1 to be ignored.
-  int prescaleEvt_;    ///units of events
-  int prescaleLS_;     ///units of lumi sections
-  int prescaleTime_;   ///units of minutes
-  int prescaleUpdate_; ///units of "updates", TBD
+	// End LumiBlock
+	void endLuminosityBlock(const edm::LuminosityBlock& lumiSeg,
+			const edm::EventSetup& c);
 
-  // Reset histograms every N events
+	// EndRun
+	void endRun(const edm::Run& run, const edm::EventSetup& c);
 
-  /// The name of the monitoring process which derives from this
-  /// class, used to standardize filename and file structure
-  std::string monitorName_;
+	// Reset
+	void reset(void);
 
-  /// Verbosity switch used for debugging or informational output
-  int debug_;  // make debug an int in order to allow different levels of messaging
+	/// Boolean prescale test for this event
+	bool prescale();
+	/*
+	// Check ZDC has FED data
+	void CheckZDCStatus	(const FEDRawDataCollection& rawraw,
+	const HcalUnpackerReport& report,
+	const HcalElectronicsMap& emap,
+	const ZDCDigiCollection& zdcdigi
+	);
+	*/
+private:
+	std::vector<int> fedss;
+	/********************************************************/
+	//  The following member variables can be specified in  //
+	//  the configuration input file for the process.       //
+	/********************************************************/
 
-  // control whether or not to display time used by each module
-  bool showTiming_; 
-  edm::CPUTimer cpu_timer; // 
+	/// Prescale variables for restricting the frequency of analyzer
+	/// behavior.  The base class does not implement prescales.
+	/// Set to -1 to be ignored.
+	int prescaleEvt_;    ///units of events
+	int prescaleLS_;     ///units of lumi sections
+	int prescaleTime_;   ///units of minutes
+	int prescaleUpdate_; ///units of "updates", TBD
 
-  // counters and flags
-  int nevt_;
+	// Reset histograms every N events
+	//
 
-  struct{
-    timeval startTV,updateTV;
-    double elapsedTime; 
-    double vetoTime; 
-    double updateTime;
-  } psTime_;    
+	/// keep a reference to the paramter set.  This is needed to pass the
+	// HcalZDCMonitor helper class
+	const edm::ParameterSet & ps_;
 
-  ///Connection to the DQM backend
-  DQMStore* dbe_;  
-  
-  // environment variables
-  int irun_,ievent_,itime_;
-  unsigned int ilumisec;
-  bool Online_;
-  std::string rootFolder_;
+	/// The name of the monitoring process which derives from this
+	/// class, used to standardize filename and file structure
+	std::string monitorName_;
 
-  int ievt_;
-  int ievt_rawdata_;
-  int ievt_digi_;
-  int ievt_rechit_;
-  int ievt_pre_; // copy of counter used for prescale purposes
-  bool fedsListed_;
-  
-  edm::InputTag inputLabelDigi_;
-  edm::InputTag inputLabelRecHitZDC_;
+	/// Verbosity switch used for debugging or informational output
+	int debug_;  // make debug an int in order to allow different levels of messaging
 
-  edm::InputTag FEDRawDataCollection_; // not yet in use, but we still store the tag name
+	// control whether or not to display time used by each module
+	bool showTiming_;
+	edm::CPUTimer cpu_timer; //
 
-  edm::EDGetTokenT<HcalUnpackerReport> tok_hcal_;
-  edm::EDGetTokenT<ZDCDigiCollection> tok_zdc_;
-  edm::EDGetTokenT<ZDCRecHitCollection> tok_zdcrh_;
+	// counters and flags
+	int nevt_;
 
-  MonitorElement* meIEVTALL_;
-  MonitorElement* meIEVTRAW_;
-  MonitorElement* meIEVTDIGI_;
-  MonitorElement* meIEVTRECHIT_;
+	struct{
+		timeval startTV,updateTV;
+		double elapsedTime;
+		double vetoTime;
+		double updateTime;
+	} psTime_;
 
-  MonitorElement* meFEDS_;
-  MonitorElement* meStatus_;
-  MonitorElement* meTrigger_;
-  MonitorElement* meLatency_;
-  MonitorElement* meQuality_;
-  
-  HcalZDCMonitor*         zdcMon_;
+	// environment variables
+	edm::RunNumber_t irun_;
+	edm::EventNumber_t ievent_;
+	int itime_;
+	unsigned int ilumisec;
+	bool Online_;
+	std::string rootFolder_;
 
-  ////---- decide whether the ZDC status should be checked
-  bool checkZDC_;
+	int ievt_;
+	int ievt_rawdata_;
+	int ievt_digi_;
+	int ievt_rechit_;
+	int ievt_pre_; // copy of counter used for prescale purposes
+	bool fedsListed_;
 
-  edm::ESHandle<HcalDbService> conditions_;
-  const HcalElectronicsMap*    readoutMap_;
+	edm::InputTag inputLabelDigi_;
+	edm::InputTag inputLabelRecHitZDC_;
 
-  std::ofstream m_logFile;
+//	edm::InputTag FEDRawDataCollection_; // not yet in use, but we still store the tag name
 
-  // Determine whether the ZDC in the run (using FED info)
-  int ZDCpresent_;
-  MonitorElement* meZDC_;
+	edm::EDGetTokenT<HcalUnpackerReport> tok_hcal_;
+	edm::EDGetTokenT<ZDCDigiCollection> tok_zdc_;
+	edm::EDGetTokenT<ZDCRecHitCollection> tok_zdcrh_;
 
-  // myquality_ will store status values for each det ID I find
-  bool dump2database_;
-  //std::map<HcalDetId, unsigned int> myquality_;
-  //HcalChannelQuality* chanquality_;
+	MonitorElement* meIEVTALL_;
+	MonitorElement* meIEVTRAW_;
+	MonitorElement* meIEVTDIGI_;
+	MonitorElement* meIEVTRECHIT_;
+
+	MonitorElement* meFEDS_;
+	MonitorElement* meStatus_;
+	MonitorElement* meTrigger_;
+	MonitorElement* meLatency_;
+	MonitorElement* meQuality_;
+
+	HcalZDCMonitor*         zdcMon_;
+
+	////---- decide whether the ZDC status should be checked
+	bool checkZDC_;
+
+	edm::ESHandle<HcalDbService> conditions_;
+	const HcalElectronicsMap*    readoutMap_;
+
+	std::ofstream m_logFile;
+
+	// Determine whether the ZDC in the run (using FED info)
+	int ZDCpresent_;
+	MonitorElement* meZDC_;
+
+	// myquality_ will store status values for each det ID I find
+	bool dump2database_;
+	//std::map<HcalDetId, unsigned int> myquality_;
+	//HcalChannelQuality* chanquality_;
 };
 
 #endif

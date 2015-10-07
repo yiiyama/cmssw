@@ -1,7 +1,11 @@
 import FWCore.ParameterSet.Config as cms
+from RecoParticleFlow.PFClusterProducer.particleFlowCaloResolution_cfi import _timeResolutionHCAL
+
 particleFlowRecHitHBHE = cms.EDProducer("PFRecHitProducer",
     navigator = cms.PSet(
-        name = cms.string("PFRecHitHCALNavigator")
+            name = cms.string("PFRecHitHCALNavigator"),
+            sigmaCut = cms.double(4.0),
+            timeResolutionCalc = _timeResolutionHCAL
     ),
     producers = cms.VPSet(
            cms.PSet(
@@ -10,7 +14,7 @@ particleFlowRecHitHBHE = cms.EDProducer("PFRecHitProducer",
              qualityTests = cms.VPSet(
                   cms.PSet(
                   name = cms.string("PFRecHitQTestThreshold"),
-                  threshold = cms.double(0.4)
+                  threshold = cms.double(0.8)
                   ),
                   cms.PSet(
                       name = cms.string("PFRecHitQTestHCALChannel"),

@@ -11,17 +11,17 @@ std::string const TrackBase::algoNames[] = {
     "ctf",
     "rs",
     "cosmics",
-    "iter0",
-    "iter1",
-    "iter2",
-    "iter3",
-    "iter4",
-    "iter5",
-    "iter6",
-    "iter7",
-    "iter8",
-    "iter9",
-    "iter10",
+    "initialStep",
+    "lowPtTripletStep",
+    "pixelPairStep",
+    "detachedTripletStep",
+    "mixedTripletStep",
+    "pixelLessStep",
+    "tobTecStep",
+    "jetCoreRegionalStep",
+    "conversionStep",
+    "muonSeededStepInOut",
+    "muonSeededStepOutIn",
     "outInEcalSeededConv",
     "inOutEcalSeededConv",
     "nuclInter",
@@ -36,7 +36,23 @@ std::string const TrackBase::algoNames[] = {
     "iter5LargeD0",
     "bTagGhostTracks",
     "beamhalo" ,
-    "gsf"
+    "gsf",
+    "hltPixel",
+    "hltIter0",
+    "hltIter1",
+    "hltIter2",
+    "hltIter3",
+    "hltIter4",
+    "hltIterX",
+    "hiRegitMuInitialStep",
+    "hiRegitMuLowPtTripletStep",
+    "hiRegitMuPixelPairStep",
+    "hiRegitMuDetachedTripletStep",
+    "hiRegitMuMixedTripletStep",
+    "hiRegitMuPixelLessStep",
+    "hiRegitMuTobTecStep",
+    "hiRegitMuMuonSeededStepInOut",
+    "hiRegitMuMuonSeededStepOutIn"
 };
 
 std::string const TrackBase::qualityNames[] = {
@@ -46,7 +62,8 @@ std::string const TrackBase::qualityNames[] = {
     "confirmed",
     "goodIterative",
     "looseSetWithPV",
-    "highPuritySetWithPV"
+    "highPuritySetWithPV",
+    "discarded"
 };
 
 TrackBase::TrackBase() :
@@ -56,9 +73,11 @@ TrackBase::TrackBase() :
     ndof_(0),
     charge_(0),
     algorithm_(undefAlgorithm),
+    originalAlgorithm_(undefAlgorithm),
     quality_(0),
     nLoops_(0)
 {
+    algoMask_.set(algorithm_);
     index idx = 0;
     for (index i = 0; i < dimension; ++i) {
         for (index j = 0; j <= i; ++j) {
@@ -76,9 +95,12 @@ TrackBase::TrackBase(double chi2, double ndof, const Point &vertex, const Vector
     ndof_(ndof),
     charge_(charge),
     algorithm_(algorithm),
+    originalAlgorithm_(algorithm),
     quality_(0),
     nLoops_(nloops)
 {
+    algoMask_.set(algorithm_);
+
     index idx = 0;
     for (index i = 0; i < dimension; ++i) {
         for (index j = 0; j <= i; ++j) {
@@ -92,7 +114,6 @@ TrackBase::~TrackBase()
 {
     ;
 }
-
 
 TrackBase::CovarianceMatrix & TrackBase::fill(CovarianceMatrix &v) const
 {

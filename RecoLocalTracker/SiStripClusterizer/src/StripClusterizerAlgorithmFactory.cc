@@ -4,6 +4,7 @@
 #include "RecoLocalTracker/SiStripClusterizer/interface/StripClusterizerAlgorithm.h"
 #include "RecoLocalTracker/SiStripClusterizer/interface/ThreeThresholdAlgorithm.h"
 #include "RecoLocalTracker/SiStripClusterizer/interface/OldThreeThresholdAlgorithm.h"
+#include "RecoLocalTracker/SiStripClusterizer/interface/ClusterChargeCut.h"
 
 std::auto_ptr<StripClusterizerAlgorithm> StripClusterizerAlgorithmFactory::
 create(const edm::ParameterSet& conf) {
@@ -23,7 +24,9 @@ create(const edm::ParameterSet& conf) {
 	       conf.getParameter<unsigned>("MaxAdjacentBad"),
 	       conf.getParameter<std::string>("QualityLabel"),
 	       setDetId,
-	       conf.getParameter<bool>("RemoveApvShots")));
+	       conf.getParameter<bool>("RemoveApvShots"),
+               clusterChargeCut(conf)
+           ));
   }
 
   if(algorithm == "OldThreeThresholdAlgorithm") {

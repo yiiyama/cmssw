@@ -6,13 +6,13 @@
 #include "DataFormats/Common/interface/TriggerResults.h"
 #include "DataFormats/L1GlobalTrigger/interface/L1GlobalTriggerReadoutRecord.h"
 #include "DataFormats/HcalRecHit/interface/HcalRecHitCollections.h"
-#include "Geometry/HcalTowerAlgo/src/HcalHardcodeGeometryData.h" // for eta bounds
+#include "Geometry/Records/interface/HcalRecNumberingRecord.h"
+
 #include "CondFormats/HcalObjects/interface/HcalChannelQuality.h"
 #include "FWCore/Framework/interface/LuminosityBlock.h"
 
 // constructor
-HcalCoarsePedestalMonitor::HcalCoarsePedestalMonitor(const edm::ParameterSet& ps) 
-{
+HcalCoarsePedestalMonitor::HcalCoarsePedestalMonitor(const edm::ParameterSet& ps) : HcalBaseDQMonitor(ps) {
   Online_                = ps.getUntrackedParameter<bool>("online",false);
   mergeRuns_             = ps.getUntrackedParameter<bool>("mergeRuns",false);
   enableCleanup_         = ps.getUntrackedParameter<bool>("enableCleanup",false);
@@ -42,27 +42,7 @@ HcalCoarsePedestalMonitor::HcalCoarsePedestalMonitor(const edm::ParameterSet& ps
 
 
 // destructor
-HcalCoarsePedestalMonitor::~HcalCoarsePedestalMonitor() {}
-
-
-
-void HcalCoarsePedestalMonitor::cleanup()
-{
-  // Need to add code to clear out subfolders as well?
-  if (debug_>0) std::cout <<"HcalCoarsePedestalMonitor::cleanup()"<<std::endl;
-  if (!enableCleanup_) return;
-  if (dbe_)
-    {
-      // removeContents doesn't remove subdirectories
-      dbe_->setCurrentFolder(subdir_);
-      dbe_->removeContents();
-      dbe_->setCurrentFolder(subdir_+"CoarsePedestal_parameters");
-      dbe_->removeContents();
-      dbe_->setCurrentFolder(subdir_+"LSvalues");
-      dbe_->removeContents();
-    } // if(dbe_)
-
-} // void HcalCoarsePedestalMonitor::cleanup();
+HcalCoarsePedestalMonitor::~HcalCoarsePedestalMonitor() { }
 
 
 void HcalCoarsePedestalMonitor::endRun(const edm::Run& run, const edm::EventSetup& c)
@@ -77,32 +57,31 @@ void HcalCoarsePedestalMonitor::endJob()
 }
 
 
-void HcalCoarsePedestalMonitor::setup()
+void HcalCoarsePedestalMonitor::setup(DQMStore::IBooker &ib)
 {
   // Call base class setup
-  HcalBaseDQMonitor::setup();
-  if (!dbe_) return;
+  HcalBaseDQMonitor::setup(ib);
 
   /******* Set up all histograms  ********/
   if (debug_>1)
-    std::cout <<"<HcalCoarsePedestalMonitor::beginRun>  Setting up histograms"<<std::endl;
+    std::cout <<"<HcalCoarsePedestalMonitor::setup>  Setting up histograms"<<std::endl;
 
   std::ostringstream name;
-  dbe_->setCurrentFolder(subdir_ +"CoarsePedestalSumPlots");
-  SetupEtaPhiHists(CoarsePedestalsSumByDepth,"Coarse Pedestal Summed Map","");
-  SetupEtaPhiHists(CoarsePedestalsOccByDepth,"Coarse Pedestal Occupancy Map","");
+  ib.setCurrentFolder(subdir_ +"CoarsePedestalSumPlots");
+  SetupEtaPhiHists(ib,CoarsePedestalsSumByDepth,"Coarse Pedestal Summed Map","");
+  SetupEtaPhiHists(ib,CoarsePedestalsOccByDepth,"Coarse Pedestal Occupancy Map","");
   for (unsigned int i=0;i<CoarsePedestalsSumByDepth.depth.size();++i)
     (CoarsePedestalsSumByDepth.depth[i]->getTH2F())->SetOption("colz");
   for (unsigned int i=0;i<CoarsePedestalsOccByDepth.depth.size();++i)
     (CoarsePedestalsOccByDepth.depth[i]->getTH2F())->SetOption("colz");
 
 
-  dbe_->setCurrentFolder(subdir_+"CoarsePedestal_parameters");
-  MonitorElement* ADCDiffThresh = dbe_->bookFloat("ADCdiff_Problem_Threshold");
+  ib.setCurrentFolder(subdir_+"CoarsePedestal_parameters");
+  MonitorElement* ADCDiffThresh = ib.bookFloat("ADCdiff_Problem_Threshold");
   ADCDiffThresh->Fill(ADCDiffThresh_);
-  MonitorElement* minevents = dbe_->bookInt("minEventsNeededForPedestalCalculation");
+  MonitorElement* minevents = ib.bookInt("minEventsNeededForPedestalCalculation");
   minevents->Fill(minEvents_);
-  MonitorElement* excludeHORing2 = dbe_->bookInt("excludeHORing2");
+  MonitorElement* excludeHORing2 = ib.bookInt("excludeHORing2");
   if (excludeHORing2_==true)
     excludeHORing2->Fill(1);
   else
@@ -112,18 +91,19 @@ void HcalCoarsePedestalMonitor::setup()
   return;
 } // void HcalCoarsePedestalMonitor::setup()
 
-void HcalCoarsePedestalMonitor::beginRun(const edm::Run& run, const edm::EventSetup& c)
+void HcalCoarsePedestalMonitor::bookHistograms(DQMStore::IBooker &ib, const edm::Run& run, const edm::EventSetup& c)
 {
-  HcalBaseDQMonitor::beginRun(run,c);
+  HcalBaseDQMonitor::bookHistograms(ib,run,c);
   if (mergeRuns_ && tevt_>0) return; // don't reset counters if merging runs
 
-  if (tevt_==0) this->setup(); // create all histograms; not necessary if merging runs together
+  if (tevt_==0) this->setup(ib); // create all histograms; not necessary if merging runs together
   if (mergeRuns_==false) this->reset(); // call reset at start of all runs
-} // void HcalCoarsePedestalMonitor::beginRun()
+} // void HcalCoarsePedestalMonitor::bookHistograms()
 
 
-void HcalCoarsePedestalMonitor::analyze(edm::Event const&e, edm::EventSetup const&s)
-{
+void HcalCoarsePedestalMonitor::analyze(edm::Event const&e, edm::EventSetup const&s) {
+  HcalBaseDQMonitor::analyze(e,s);
+
   if (!IsAllowedCalibType()) return;
   if (LumiInOrder(e.luminosityBlock())==false) return;
 
@@ -159,7 +139,7 @@ void HcalCoarsePedestalMonitor::analyze(edm::Event const&e, edm::EventSetup cons
   // all objects grabbed; event is good
   if (debug_>1) std::cout <<"\t<HcalCoarsePedestalMonitor::analyze>  Processing good event! event # = "<<ievt_<<std::endl;
 
-  HcalBaseDQMonitor::analyze(e,s); // base class increments ievt_, etc. counters
+//  HcalBaseDQMonitor::analyze(e,s); // base class increments ievt_, etc. counters
 
   // Digi collection was grabbed successfully; process the Event
   processEvent(*hbhe_digi, *ho_digi, *hf_digi, *report);
@@ -172,13 +152,6 @@ void HcalCoarsePedestalMonitor::processEvent(const HBHEDigiCollection& hbhe,
 					     const HFDigiCollection& hf,
 					     const HcalUnpackerReport& report)
 { 
-  if(!dbe_) 
-    { 
-      if(debug_) 
-	std::cout <<"HcalCoarsePedestalMonitor::processEvent   DQMStore not instantiated!!!"<<std::endl; 
-      return; 
-    }
-
   // Skip events in which minimal good digis found -- still getting some strange (calib?) events through DQM
   
   unsigned int allgooddigis= hbhe.size()+ho.size()+hf.size();
@@ -289,7 +262,6 @@ void HcalCoarsePedestalMonitor::processEvent(const HBHEDigiCollection& hbhe,
   return;
 } // void HcalCoarsePedestalMonitor::processEvent(...)
 
-
 void HcalCoarsePedestalMonitor::beginLuminosityBlock(const edm::LuminosityBlock& lumiSeg,
 					     const edm::EventSetup& c) 
 {
@@ -298,14 +270,16 @@ void HcalCoarsePedestalMonitor::beginLuminosityBlock(const edm::LuminosityBlock&
 }
 
 void HcalCoarsePedestalMonitor::endLuminosityBlock(const edm::LuminosityBlock& lumiSeg,
-					   const edm::EventSetup& c)
-{
+					   const edm::EventSetup& c) {
   if (LumiInOrder(lumiSeg.luminosityBlock())==false) return;
-  fill_Nevents();
+
+  edm::ESHandle<HcalTopology> topo;
+  c.get<HcalRecNumberingRecord>().get(topo);
+  fill_Nevents(*topo);
   return;
 }
-void HcalCoarsePedestalMonitor::fill_Nevents()
-{
+
+void HcalCoarsePedestalMonitor::fill_Nevents(const HcalTopology& topology) {
 
   // require minimum number of events before processing
   if (ievt_<minEvents_)
@@ -322,49 +296,42 @@ void HcalCoarsePedestalMonitor::fill_Nevents()
 
   int iphi=-1, ieta=-99, idepth=0, calcEta=-99;
   // Loop over all depths, eta, phi
-  for (int d=0;d<4;++d)
-    {
-      idepth=d+1;
-      for (int phi=0;phi<72;++phi)
-	{
-	  iphi=phi+1; // actual iphi value
-	  for (int eta=0;eta<83;++eta)
-	    {
-	      ieta=eta-41; // actual ieta value;
-	      if (validDetId(HcalBarrel, ieta, iphi, idepth))
-		{
-		  calcEta = CalcEtaBin(HcalBarrel,ieta,idepth);
-		  CoarsePedestalsSumByDepth.depth[d]->Fill(ieta,iphi,pedestalsum_[calcEta][phi][d]);
-		  CoarsePedestalsOccByDepth.depth[d]->Fill(ieta,iphi,pedestalocc_[calcEta][phi][d]);
-		}
-	      if (validDetId(HcalEndcap, ieta, iphi, idepth))
-		{
-		  calcEta = CalcEtaBin(HcalEndcap,ieta,idepth);
-		  CoarsePedestalsSumByDepth.depth[d]->Fill(ieta,iphi,pedestalsum_[calcEta][phi][d]);
-		  CoarsePedestalsOccByDepth.depth[d]->Fill(ieta,iphi,pedestalocc_[calcEta][phi][d]);
-		}
-	      if (validDetId(HcalOuter, ieta, iphi, idepth))
-		{
-		  calcEta = CalcEtaBin(HcalOuter,ieta,idepth);
-		  CoarsePedestalsSumByDepth.depth[d]->Fill(ieta,iphi,pedestalsum_[calcEta][phi][d]);
-		  CoarsePedestalsOccByDepth.depth[d]->Fill(ieta,iphi,pedestalocc_[calcEta][phi][d]);
-		}
-	      if (validDetId(HcalForward, ieta, iphi, idepth))
-		{
-		  calcEta = CalcEtaBin(HcalBarrel,ieta,idepth);
-		  int zside=ieta/abs(ieta);
-		  CoarsePedestalsSumByDepth.depth[d]->Fill(ieta+zside,iphi,pedestalsum_[calcEta][phi][d]);
-		  CoarsePedestalsOccByDepth.depth[d]->Fill(ieta+zside,iphi,pedestalocc_[calcEta][phi][d]);
-		}
-	    }
+  for (int d=0;d<4;++d) {
+    idepth=d+1;
+    for (int phi=0;phi<72;++phi) {
+      iphi=phi+1; // actual iphi value
+      for (int eta=0;eta<83;++eta) {
+	ieta=eta-41; // actual ieta value;
+	if (topology.validDetId(HcalBarrel, ieta, iphi, idepth)) {
+	  calcEta = CalcEtaBin(HcalBarrel,ieta,idepth);
+	  CoarsePedestalsSumByDepth.depth[d]->Fill(ieta,iphi,pedestalsum_[calcEta][phi][d]);
+	  CoarsePedestalsOccByDepth.depth[d]->Fill(ieta,iphi,pedestalocc_[calcEta][phi][d]);
 	}
+	if (topology.validDetId(HcalEndcap, ieta, iphi, idepth)) {
+	  calcEta = CalcEtaBin(HcalEndcap,ieta,idepth);
+	  CoarsePedestalsSumByDepth.depth[d]->Fill(ieta,iphi,pedestalsum_[calcEta][phi][d]);
+	  CoarsePedestalsOccByDepth.depth[d]->Fill(ieta,iphi,pedestalocc_[calcEta][phi][d]);
+	}
+	if (topology.validDetId(HcalOuter, ieta, iphi, idepth)) {
+	  calcEta = CalcEtaBin(HcalOuter,ieta,idepth);
+	  CoarsePedestalsSumByDepth.depth[d]->Fill(ieta,iphi,pedestalsum_[calcEta][phi][d]);
+	  CoarsePedestalsOccByDepth.depth[d]->Fill(ieta,iphi,pedestalocc_[calcEta][phi][d]);
+	}
+	if (topology.validDetId(HcalForward, ieta, iphi, idepth))	{
+	  calcEta = CalcEtaBin(HcalBarrel,ieta,idepth);
+	  int zside=ieta/abs(ieta);
+	  CoarsePedestalsSumByDepth.depth[d]->Fill(ieta+zside,iphi,pedestalsum_[calcEta][phi][d]);
+	  CoarsePedestalsOccByDepth.depth[d]->Fill(ieta+zside,iphi,pedestalocc_[calcEta][phi][d]);
+	}
+      }
     }
+  }
   // Fill unphysical bins
   FillUnphysicalHEHFBins(CoarsePedestalsSumByDepth);
   FillUnphysicalHEHFBins(CoarsePedestalsOccByDepth);
 
   return;
-} // void HcalCoarsePedestalMonitor::fill_Nevents()
+} // void HcalCoarsePedestalMonitor::fill_Nevents(const HcalTopology&)
 
 
 void HcalCoarsePedestalMonitor::reset()

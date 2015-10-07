@@ -182,7 +182,10 @@ REGISTER_PLUGIN(L1GtTriggerMaskVetoTechTrigRcd, L1GtTriggerMask);
 #include "CondFormats/L1TObjects/interface/L1GtTriggerMenu.h"
 #include "CondFormats/DataRecord/interface/L1GtTriggerMenuRcd.h"
 
-REGISTER_PLUGIN(L1GtTriggerMenuRcd, L1GtTriggerMenu);
+namespace {
+  struct L1GtTriggerMenuInitializer { void operator()(L1GtTriggerMenu & _) { _.buildGtConditionMap(); } };
+}
+REGISTER_PLUGIN_INIT(L1GtTriggerMenuRcd, L1GtTriggerMenu, L1GtTriggerMenuInitializer);
 
 #include "CondFormats/L1TObjects/interface/L1GtPsbSetup.h"
 #include "CondFormats/DataRecord/interface/L1GtPsbSetupRcd.h"
@@ -193,3 +196,14 @@ REGISTER_PLUGIN(L1GtPsbSetupRcd, L1GtPsbSetup);
 #include "CondFormats/DataRecord/interface/L1CaloGeometryRecord.h"
 
 REGISTER_PLUGIN(L1CaloGeometryRecord, L1CaloGeometry);
+
+
+// Upgrade Records:
+
+#include "CondFormats/L1TObjects/interface/CaloParams.h"
+#include "CondFormats/DataRecord/interface/L1TCaloParamsRcd.h"
+#include "CondFormats/L1TObjects/interface/CaloConfig.h"
+#include "CondFormats/DataRecord/interface/L1TCaloConfigRcd.h"
+using namespace l1t;
+REGISTER_PLUGIN(L1TCaloParamsRcd, CaloParams);
+REGISTER_PLUGIN(L1TCaloConfigRcd, CaloConfig);

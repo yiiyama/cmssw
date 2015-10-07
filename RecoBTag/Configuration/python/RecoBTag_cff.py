@@ -4,9 +4,11 @@ import FWCore.ParameterSet.Config as cms
 from RecoBTag.SoftLepton.softLepton_cff import *
 from RecoBTag.ImpactParameter.impactParameter_cff import *
 from RecoBTag.SecondaryVertex.secondaryVertex_cff import *
-from RecoBTau.JetTagComputer.combinedMVA_cff import *
+from RecoBTag.Combined.combinedMVA_cff import *
+from RecoBTag.CTagging.RecoCTagging_cff import *
+from RecoVertex.AdaptiveVertexFinder.inclusiveVertexing_cff import *
 
-btagging = cms.Sequence(
+legacyBTagging = cms.Sequence(
     (
       # impact parameters and IP-only algorithms
       impactParameterTagInfos *
@@ -19,22 +21,67 @@ btagging = cms.Sequence(
         secondaryVertexTagInfos *
         ( simpleSecondaryVertexHighEffBJetTags +
           simpleSecondaryVertexHighPurBJetTags +
-          combinedSecondaryVertexBJetTags + 
-          combinedSecondaryVertexMVABJetTags
-        ) +
-       ghostTrackVertexTagInfos *
-          ghostTrackBJetTags
+          combinedSecondaryVertexBJetTags
+        )
+        + inclusiveSecondaryVertexFinderTagInfos *
+        combinedInclusiveSecondaryVertexV2BJetTags
+
+        + ghostTrackVertexTagInfos *
+        ghostTrackBJetTags
       ) +
 
-	
-	softPFMuonsTagInfos*
-	softPFMuonBJetTags *
-	softPFElectronsTagInfos*
-	softPFElectronBJetTags
-        
-
+      # soft lepton tag infos and algos
+      softPFMuonsTagInfos *
+      softPFMuonBJetTags
+      + softPFElectronsTagInfos *
+      softPFElectronBJetTags
     )
 
     # overall combined taggers
-    # * combinedMVABJetTags
+    * combinedMVABJetTags
+    + combinedMVAV2BJetTags
+)
+
+# new candidate-based fwk, with PF inputs
+pfBTagging = cms.Sequence(
+    (
+      # impact parameters and IP-only algorithms
+      pfImpactParameterTagInfos *
+      ( pfTrackCountingHighEffBJetTags +
+        pfTrackCountingHighPurBJetTags +
+        pfJetProbabilityBJetTags +
+        pfJetBProbabilityBJetTags +
+
+        # SV tag infos depending on IP tag infos, and SV (+IP) based algos
+        pfSecondaryVertexTagInfos *
+        ( pfSimpleSecondaryVertexHighEffBJetTags +
+          pfSimpleSecondaryVertexHighPurBJetTags +
+          pfCombinedSecondaryVertexBJetTags +
+          pfCombinedSecondaryVertexV2BJetTags
+        )
+        + inclusiveCandidateVertexing *
+        pfInclusiveSecondaryVertexFinderTagInfos *
+        pfCombinedInclusiveSecondaryVertexV2BJetTags
+
+      ) +
+
+      # soft lepton tag infos and algos
+      softPFMuonsTagInfos *
+      softPFMuonBJetTags
+      + softPFElectronsTagInfos *
+      softPFElectronBJetTags
+    ) *
+
+    # overall combined taggers
+    ( #CSV + soft-lepton + jet probability discriminators combined
+      pfCombinedMVABJetTags
+      + pfCombinedMVAV2BJetTags
+
+      #CSV + soft-lepton variables combined (btagger)
+      + pfCombinedSecondaryVertexSoftLeptonBJetTags
+    )
+)
+
+btagging = cms.Sequence(
+    pfBTagging * pfCTagging
 )

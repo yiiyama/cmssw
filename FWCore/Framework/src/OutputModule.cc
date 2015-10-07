@@ -5,15 +5,18 @@
 #include "FWCore/Framework/interface/OutputModule.h"
 
 #include "DataFormats/Common/interface/Handle.h"
+#include "DataFormats/Common/interface/ThinnedAssociation.h"
 #include "DataFormats/Provenance/interface/BranchDescription.h"
 #include "DataFormats/Provenance/interface/BranchKey.h"
-#include "DataFormats/Provenance/interface/ParentageRegistry.h"
 #include "DataFormats/Provenance/interface/ProductRegistry.h"
+#include "DataFormats/Provenance/interface/ThinnedAssociationsHelper.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/EventPrincipal.h"
 #include "FWCore/Framework/interface/OutputModuleDescription.h"
 #include "FWCore/Framework/interface/TriggerNamesService.h"
 #include "FWCore/Framework/src/EventSignalsSentry.h"
+#include "FWCore/Framework/interface/PrincipalGetAdapter.h"
+#include "FWCore/Framework/src/PreallocationConfiguration.h"
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
@@ -43,24 +46,27 @@ namespace edm {
     droppedBranchIDToKeptBranchID_(),
     branchIDLists_(new BranchIDLists),
     origBranchIDLists_(nullptr),
-    branchParents_(),
-    branchChildren_() {
+    thinnedAssociationsHelper_(new ThinnedAssociationsHelper) {
 
     hasNewlyDroppedBranch_.fill(false);
 
     Service<service::TriggerNamesService> tns;
     process_name_ = tns->getProcessName();
 
-    ParameterSet selectevents =
+    selectEvents_ =
       pset.getUntrackedParameterSet("SelectEvents", ParameterSet());
 
-    selectevents.registerIt(); // Just in case this PSet is not registered
+    selectEvents_.registerIt(); // Just in case this PSet is not registered
 
-    selector_config_id_ = selectevents.id();
-    wantAllEvents_ = detail::configureEventSelector(selectevents,
-                                                    process_name_,
-                                                    getAllTriggerNames(),
-                                                    selectors_);
+    selector_config_id_ = selectEvents_.id();
+    selectors_.resize(1);
+    //need to set wantAllEvents_ in constructor
+    // we will make the remaining selectors once we know how many streams
+    wantAllEvents_ = detail::configureEventSelector(selectEvents_,
+                                                          process_name_,
+                                                          getAllTriggerNames(),
+                                                          selectors_[0]);
+
     SharedResourcesRegistry::instance()->registerSharedResource(
                                                                 SharedResourcesRegistry::kLegacyModuleResourceName);
 
@@ -71,7 +77,8 @@ namespace edm {
     origBranchIDLists_ = desc.branchIDLists_;
   }
 
-  void OutputModule::selectProducts(ProductRegistry const& preg) {
+  void OutputModule::selectProducts(ProductRegistry const& preg,
+                                    ThinnedAssociationsHelper const& thinnedAssociationsHelper) {
     if(productSelector_.initialized()) return;
     productSelector_.initialize(productSelectorRules_, preg.allBranchDescriptions());
 
@@ -80,6 +87,8 @@ namespace edm {
     // for more information.
 
     std::map<BranchID, BranchDescription const*> trueBranchIDToKeptBranchDesc;
+    std::vector<BranchDescription const*> associationDescriptions;
+    std::set<BranchID> keptProductsInEvent;
 
     for(auto const& it : preg.productList()) {
       BranchDescription const& desc = it.second;
@@ -88,78 +97,99 @@ namespace edm {
       } else if(!desc.present() && !desc.produced()) {
         // else if the branch containing the product has been previously dropped,
         // output nothing
+      } else if(desc.unwrappedType() == typeid(ThinnedAssociation)) {
+        associationDescriptions.push_back(&desc);
       } else if(selected(desc)) {
-        // else if the branch has been selected, put it in the list of selected branches.
-        if(desc.produced()) {
-          // First we check if an equivalent branch has already been selected due to an EDAlias.
-          // We only need the check for products produced in this process.
-          BranchID const& trueBranchID = desc.originalBranchID();
-          std::map<BranchID, BranchDescription const*>::const_iterator iter = trueBranchIDToKeptBranchDesc.find(trueBranchID);
-          if(iter != trueBranchIDToKeptBranchDesc.end()) {
-             throw edm::Exception(errors::Configuration, "Duplicate Output Selection")
-               << "Two (or more) equivalent branches have been selected for output.\n"
-               << "#1: " << BranchKey(desc) << "\n" 
-               << "#2: " << BranchKey(*iter->second) << "\n" 
-               << "Please drop at least one of them.\n";
-          }
-          trueBranchIDToKeptBranchDesc.insert(std::make_pair(trueBranchID, &desc));
-        }
-        switch (desc.branchType()) {
-          case InEvent:
-          {
-            consumes(TypeToGet{desc.unwrappedTypeID(),PRODUCT_TYPE},
-                     InputTag{desc.moduleLabel(),
-                              desc.productInstanceName(),
-                       desc.processName()});
-            break;
-          }
-          case InLumi:
-          {
-            consumes<InLumi>(TypeToGet{desc.unwrappedTypeID(),PRODUCT_TYPE},
-                             InputTag(desc.moduleLabel(),
-                                      desc.productInstanceName(),
-                                      desc.processName()));
-            break;
-          }
-          case InRun:
-          {
-            consumes<InRun>(TypeToGet{desc.unwrappedTypeID(),PRODUCT_TYPE},
-                            InputTag(desc.moduleLabel(),
-                                     desc.productInstanceName(),
-                                     desc.processName()));
-            break;
-          }
-          default:
-            assert(false);
-            break;
-        }
-        // Now put it in the list of selected branches.
-        keptProducts_[desc.branchType()].push_back(&desc);
+        keepThisBranch(desc, trueBranchIDToKeptBranchDesc, keptProductsInEvent);
       } else {
         // otherwise, output nothing,
         // and mark the fact that there is a newly dropped branch of this type.
         hasNewlyDroppedBranch_[desc.branchType()] = true;
       }
     }
-    // Now fill in a mapping needed in the case that a branch was dropped while its EDAlias was kept.
-    for(auto const& it : preg.productList()) {
-      BranchDescription const& desc = it.second;
-      if(!desc.produced() || desc.isAlias()) continue;
-      BranchID const& branchID = desc.branchID();
-      std::map<BranchID, BranchDescription const*>::const_iterator iter = trueBranchIDToKeptBranchDesc.find(branchID);
-      if(iter != trueBranchIDToKeptBranchDesc.end()) {
-        // This branch, produced in this process, or an alias of it, was persisted.
-        BranchID const& keptBranchID = iter->second->branchID();
-        if(keptBranchID != branchID) {
-          // An EDAlias branch was persisted.
-          droppedBranchIDToKeptBranchID_.insert(std::make_pair(branchID.id(), keptBranchID.id()));
-        }
+
+    thinnedAssociationsHelper.selectAssociationProducts(associationDescriptions,
+                                                        keptProductsInEvent,
+                                                        keepAssociation_);
+
+    for(auto association : associationDescriptions) {
+      if(keepAssociation_[association->branchID()]) {
+        keepThisBranch(*association, trueBranchIDToKeptBranchDesc, keptProductsInEvent);
+      } else {
+        hasNewlyDroppedBranch_[association->branchType()] = true;
       }
     }
+
+    // Now fill in a mapping needed in the case that a branch was dropped while its EDAlias was kept.
+    ProductSelector::fillDroppedToKept(preg, trueBranchIDToKeptBranchDesc, droppedBranchIDToKeptBranchID_);
+
+    thinnedAssociationsHelper_->updateFromParentProcess(thinnedAssociationsHelper, keepAssociation_, droppedBranchIDToKeptBranchID_);
+  }
+
+  void OutputModule::keepThisBranch(BranchDescription const& desc,
+                                    std::map<BranchID, BranchDescription const*>& trueBranchIDToKeptBranchDesc,
+                                    std::set<BranchID>& keptProductsInEvent) {
+
+    ProductSelector::checkForDuplicateKeptBranch(desc,
+                                                 trueBranchIDToKeptBranchDesc);
+
+    switch (desc.branchType()) {
+    case InEvent:
+      {
+        if(desc.produced()) {
+          keptProductsInEvent.insert(desc.originalBranchID());
+        } else {
+          keptProductsInEvent.insert(desc.branchID());
+        }
+        consumes(TypeToGet{desc.unwrappedTypeID(),PRODUCT_TYPE},
+                 InputTag{desc.moduleLabel(),
+                     desc.productInstanceName(),
+                     desc.processName()});
+        break;
+      }
+    case InLumi:
+      {
+        consumes<InLumi>(TypeToGet{desc.unwrappedTypeID(),PRODUCT_TYPE},
+                         InputTag(desc.moduleLabel(),
+                                  desc.productInstanceName(),
+                                  desc.processName()));
+        break;
+      }
+    case InRun:
+      {
+        consumes<InRun>(TypeToGet{desc.unwrappedTypeID(),PRODUCT_TYPE},
+                        InputTag(desc.moduleLabel(),
+                                 desc.productInstanceName(),
+                                 desc.processName()));
+        break;
+      }
+    default:
+      assert(false);
+      break;
+    }
+    // Now put it in the list of selected branches.
+    keptProducts_[desc.branchType()].push_back(&desc);
   }
 
   OutputModule::~OutputModule() { }
 
+  void OutputModule::doPreallocate(PreallocationConfiguration const& iPC) {
+    auto nstreams = iPC.numberOfStreams();
+    selectors_.resize(nstreams);
+
+    bool seenFirst = false;
+    for(auto& s : selectors_) {
+      if(seenFirst) {
+        detail::configureEventSelector(selectEvents_,
+                                       process_name_,
+                                       getAllTriggerNames(),
+                                       s);
+      }
+      seenFirst = true;
+    }
+  }
+
+  
   void OutputModule::doBeginJob() {
     std::vector<std::string> res = {SharedResourcesRegistry::kLegacyModuleResourceName};
     resourceAcquirer_ = SharedResourcesRegistry::instance()->createAcquirer(res);
@@ -172,10 +202,20 @@ namespace edm {
   }
 
 
-  Trig OutputModule::getTriggerResults(EventPrincipal const& ep, ModuleCallingContext const* mcc) const {
-    return selectors_.getOneTriggerResults(ep, mcc);  }
-
-  namespace {
+  Trig OutputModule::getTriggerResults(EDGetTokenT<TriggerResults> const& token, EventPrincipal const& ep, ModuleCallingContext const* mcc) const {
+    //This cast is safe since we only call const functions of the EventPrincipal after this point
+    PrincipalGetAdapter adapter(const_cast<EventPrincipal&>(ep), moduleDescription_);
+    adapter.setConsumer(this);
+    Trig result;
+    auto bh = adapter.getByToken_(TypeID(typeid(TriggerResults)),PRODUCT_TYPE, token, mcc);
+    convert_handle(std::move(bh), result);
+    return result;
+  }
+  
+  bool OutputModule::prePrefetchSelection(StreamID id, EventPrincipal const& ep, ModuleCallingContext const* mcc) {
+    
+    auto& s = selectors_[id.value()];
+    return wantAllEvents_ or s.wantEvent(ep,mcc);
   }
 
   bool
@@ -188,19 +228,12 @@ namespace edm {
 
     {
       std::lock_guard<std::mutex> guard(mutex_);
-      detail::TRBESSentry products_sentry(selectors_);
-      if(!wantAllEvents_) {
-        if(!selectors_.wantEvent(ep, mcc)) {
-          return true;
-        }
-      }
       
       {
         std::lock_guard<SharedResourcesAcquirer> guardAcq(resourceAcquirer_);
         EventSignalsSentry signals(act,mcc);
         write(ep, mcc);
       }
-      updateBranchParents(ep);
     }
     if(remainingEvents_ > 0) {
       --remainingEvents_;
@@ -301,10 +334,7 @@ namespace edm {
 
   void OutputModule::doCloseFile() {
     if(isFileOpen()) {
-      fillDependencyGraph();
       reallyCloseFile();
-      branchParents_.clear();
-      branchChildren_.clear();
     }
   }
 
@@ -312,7 +342,7 @@ namespace edm {
   }
 
   BranchIDLists const*
-  OutputModule::branchIDLists() const {
+  OutputModule::branchIDLists() {
     if(!droppedBranchIDToKeptBranchID_.empty()) {
       // Make a private copy of the BranchIDLists.
       *branchIDLists_ = *origBranchIDLists_;
@@ -329,6 +359,11 @@ namespace edm {
       return branchIDLists_.get();
     }
     return origBranchIDLists_;
+  }
+
+  ThinnedAssociationsHelper const*
+  OutputModule::thinnedAssociationsHelper() const {
+    return thinnedAssociationsHelper_.get();
   }
 
   ModuleDescription const&
@@ -372,39 +407,5 @@ namespace edm {
                                       description().moduleLabel(),
                                                       outputModulePathPositions,
                                                       anyProductProduced);
-  }
-
-  void
-  OutputModule::updateBranchParents(EventPrincipal const& ep) {
-    for(EventPrincipal::const_iterator i = ep.begin(), iEnd = ep.end(); i != iEnd; ++i) {
-      if((*i) && (*i)->productProvenancePtr() != 0) {
-        BranchID const& bid = (*i)->branchDescription().branchID();
-        BranchParents::iterator it = branchParents_.find(bid);
-        if(it == branchParents_.end()) {
-          it = branchParents_.insert(std::make_pair(bid, std::set<ParentageID>())).first;
-        }
-        it->second.insert((*i)->productProvenancePtr()->parentageID());
-        branchChildren_.insertEmpty(bid);
-      }
-    }
-  }
-
-  void
-  OutputModule::fillDependencyGraph() {
-    for(BranchParents::const_iterator i = branchParents_.begin(), iEnd = branchParents_.end();
-        i != iEnd; ++i) {
-      BranchID const& child = i->first;
-      std::set<ParentageID> const& eIds = i->second;
-      for(std::set<ParentageID>::const_iterator it = eIds.begin(), itEnd = eIds.end();
-          it != itEnd; ++it) {
-        Parentage entryDesc;
-        ParentageRegistry::instance()->getMapped(*it, entryDesc);
-        std::vector<BranchID> const& parents = entryDesc.parents();
-        for(std::vector<BranchID>::const_iterator j = parents.begin(), jEnd = parents.end();
-          j != jEnd; ++j) {
-          branchChildren_.insertChild(*j, child);
-        }
-      }
-    }
   }
 }

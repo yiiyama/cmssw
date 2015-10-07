@@ -1,4 +1,3 @@
-#include <memory>
 #include <vector>
 #include <string>
 #include <iostream>
@@ -8,6 +7,7 @@
 #include "DataFormats/JetReco/interface/JPTJet.h"
 #include "DataFormats/JetReco/interface/CaloJet.h"
 #include "DataFormats/VertexReco/interface/Vertex.h"
+#include "DataFormats/PatCandidates/interface/Jet.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "PhysicsTools/PatAlgos/plugins/JetCorrFactorsProducer.h"
 #include "JetMETCorrections/Objects/interface/JetCorrectionsRecord.h"
@@ -26,7 +26,8 @@ JetCorrFactorsProducer::JetCorrFactorsProducer(const edm::ParameterSet& cfg):
   label_(cfg.getParameter<std::string>( "@module_label" )),
   payload_( cfg.getParameter<std::string>("payload") ),
   useNPV_(cfg.getParameter<bool>("useNPV")),
-  useRho_(cfg.getParameter<bool>("useRho"))
+  useRho_(cfg.getParameter<bool>("useRho")),
+  cacheId_(0)
 {
   std::vector<std::string> levels = cfg.getParameter<std::vector<std::string> >("levels");
   // fill the std::map for levels_, which might be flavor dependent or not;
@@ -145,19 +146,26 @@ JetCorrFactorsProducer::params(const JetCorrectorParametersCollection& parameter
 }
 
 float
-JetCorrFactorsProducer::evaluate(edm::View<reco::Jet>::const_iterator& jet, boost::shared_ptr<FactorizedJetCorrector>& corrector, boost::shared_ptr<FactorizedJetCorrector>& extraJPTOffset, int level)
+JetCorrFactorsProducer::evaluate(edm::View<reco::Jet>::const_iterator& jet, const JetCorrFactors::Flavor& flavor, int level)
 {
+  std::unique_ptr<FactorizedJetCorrector>& corrector = correctors_.find(flavor)->second;
   // add parameters for JPT corrections
   const reco::JPTJet* jpt = dynamic_cast<reco::JPTJet const *>( &*jet );
   if( jpt ){
     TLorentzVector p4; p4.SetPtEtaPhiE(jpt->getCaloJetRef()->pt(), jpt->getCaloJetRef()->eta(), jpt->getCaloJetRef()->phi(), jpt->getCaloJetRef()->energy());
-    if( extraJPTOffset ){
-      extraJPTOffset->setJPTrawP4(p4);
-      corrector->setJPTrawOff(extraJPTOffset->getSubCorrections()[0]);
+    if( extraJPTOffsetCorrector_ ){
+      extraJPTOffsetCorrector_->setJPTrawP4(p4);
+      corrector->setJPTrawOff(extraJPTOffsetCorrector_->getSubCorrections()[0]);
     }
     corrector->setJPTrawP4(p4);
   }
-  corrector->setJetEta(jet->eta()); corrector->setJetPt(jet->pt()); corrector->setJetE(jet->energy());
+  //For PAT jets undo previous jet energy corrections
+  const Jet* patjet = dynamic_cast<Jet const *>( &*jet );
+  if( patjet ){
+    corrector->setJetEta(patjet->correctedP4(0).eta()); corrector->setJetPt(patjet->correctedP4(0).pt()); corrector->setJetE(patjet->correctedP4(0).energy());
+  } else {
+    corrector->setJetEta(jet->eta()); corrector->setJetPt(jet->pt()); corrector->setJetE(jet->energy());
+  }
   if( emf_ && dynamic_cast<const reco::CaloJet*>(&*jet)){
     corrector->setJetEMF(dynamic_cast<const reco::CaloJet*>(&*jet)->emEnergyFraction());
   }
@@ -185,20 +193,20 @@ JetCorrFactorsProducer::produce(edm::Event& event, const edm::EventSetup& setup)
   edm::Handle<double> rho;
   if(!rho_.label().empty()) event.getByToken(rhoToken_, rho);
 
-  // retreive parameters from the DB
-  edm::ESHandle<JetCorrectorParametersCollection> parameters;
-  setup.get<JetCorrectionsRecord>().get(payload(), parameters);
-
-  // initialize jet correctors
-  std::map<JetCorrFactors::Flavor, boost::shared_ptr<FactorizedJetCorrector> > corrector;
-  for(FlavorCorrLevelMap::const_iterator flavor=levels_.begin(); flavor!=levels_.end(); ++flavor){
-    corrector[flavor->first] = boost::shared_ptr<FactorizedJetCorrector>( new FactorizedJetCorrector(params(*parameters, flavor->second)) );
-  }
-
-  // initialize extra jet corrector for jpt if needed
-  boost::shared_ptr<FactorizedJetCorrector> extraJPTOffset;
-  if(!extraJPTOffset_.empty()){
-    extraJPTOffset = boost::shared_ptr<FactorizedJetCorrector>( new FactorizedJetCorrector(params(*parameters, extraJPTOffset_)) );
+  auto const& rec = setup.get<JetCorrectionsRecord>();
+  if (cacheId_ != rec.cacheIdentifier()) {
+    // retreive parameters from the DB
+    edm::ESHandle<JetCorrectorParametersCollection> parameters;
+    setup.get<JetCorrectionsRecord>().get(payload(), parameters);
+    // initialize jet correctors
+    for(FlavorCorrLevelMap::const_iterator flavor=levels_.begin(); flavor!=levels_.end(); ++flavor){
+      correctors_[flavor->first].reset( new FactorizedJetCorrector(params(*parameters, flavor->second)) );
+    }
+    // initialize extra jet corrector for jpt if needed
+    if(!extraJPTOffset_.empty()){
+      extraJPTOffsetCorrector_.reset( new FactorizedJetCorrector(params(*parameters, extraJPTOffset_)) );
+    }
+    cacheId_ = rec.cacheIdentifier();
   }
 
   // fill the jetCorrFactors
@@ -235,30 +243,30 @@ JetCorrFactorsProducer::produce(edm::Event& event, const edm::EventSetup& setup)
 	  if(!primaryVertices_.label().empty()){
 	    // if primaryVerticesToken_ has a value the number of primary vertices needs to be
 	    // specified
-	    corrector.find(flavor->first)->second->setNPV(numberOf(primaryVertices));
+	    correctors_.find(flavor->first)->second->setNPV(numberOf(primaryVertices));
 	  }
 	  if(!rho_.label().empty()){
 	    // if rhoToken_ has a value the energy density parameter rho and the jet area need
 	    //  to be specified
-	    corrector.find(flavor->first)->second->setRho(*rho);
-	    corrector.find(flavor->first)->second->setJetA(jet->jetArea());
+	    correctors_.find(flavor->first)->second->setRho(*rho);
+	    correctors_.find(flavor->first)->second->setJetA(jet->jetArea());
 	  }
-	  factors.push_back(evaluate(jet, corrector.find(flavor->first)->second, extraJPTOffset, idx));
+	  factors.push_back(evaluate(jet, flavor->first, idx));
 	}
       }
       else{
 	if(!primaryVertices_.label().empty()){
 	  // if primaryVerticesToken_ has a value the number of primary vertices needs to be
 	  // specified
-	  corrector.find(corrLevel->first)->second->setNPV(numberOf(primaryVertices));
+	  correctors_.find(corrLevel->first)->second->setNPV(numberOf(primaryVertices));
 	}
 	if(!rho_.label().empty()){
 	  // if rhoToken_ has a value the energy density parameter rho and the jet area need
 	  // to be specified
-	  corrector.find(corrLevel->first)->second->setRho(*rho);
-	  corrector.find(corrLevel->first)->second->setJetA(jet->jetArea());
+	  correctors_.find(corrLevel->first)->second->setRho(*rho);
+	  correctors_.find(corrLevel->first)->second->setJetA(jet->jetArea());
 	}
-	factors.push_back(evaluate(jet, corrector.find(corrLevel->first)->second, extraJPTOffset, idx));
+	factors.push_back(evaluate(jet, corrLevel->first, idx));
       }
       // push back the set of JetCorrFactors: the first entry corresponds to the label
       // of the correction level, which is taken from the first element in levels_. For
@@ -303,6 +311,7 @@ JetCorrFactorsProducer::fillDescriptions(edm::ConfigurationDescriptions & descri
   levels.push_back(std::string("L1Offset"  ));
   levels.push_back(std::string("L2Relative"));
   levels.push_back(std::string("L3Absolute"));
+  levels.push_back(std::string("L2L3Residual"));
   levels.push_back(std::string("L5Flavor"  ));
   levels.push_back(std::string("L7Parton"  ));
   iDesc.add<std::vector<std::string> >("levels", levels);

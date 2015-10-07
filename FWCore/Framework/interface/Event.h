@@ -22,6 +22,7 @@ For its usage, see "FWCore/Framework/interface/PrincipalGetAdapter.h"
 #include "DataFormats/Common/interface/Handle.h"
 #include "DataFormats/Common/interface/OrphanHandle.h"
 #include "DataFormats/Common/interface/Wrapper.h"
+#include "DataFormats/Common/interface/FillViewHelperVector.h"
 #include "DataFormats/Common/interface/FunctorHandleExceptionFactory.h"
 
 #include "DataFormats/Provenance/interface/EventID.h"
@@ -43,6 +44,8 @@ For its usage, see "FWCore/Framework/interface/PrincipalGetAdapter.h"
 #include <typeinfo>
 #include <vector>
 
+class testEventGetRefBeforePut;
+
 namespace edm {
 
   class BranchDescription;
@@ -51,7 +54,9 @@ namespace edm {
   class TriggerResults;
   class TriggerNames;
   class EDConsumerBase;
+  class EDProductGetter;
   class ProducerBase;
+  class SharedResourcesAcquirer;
   namespace stream {
     template< typename T> class ProducingModuleAdaptorBase;
   }
@@ -64,6 +69,8 @@ namespace edm {
     
     //Used in conjunction with EDGetToken
     void setConsumer(EDConsumerBase const* iConsumer);
+    
+    void setSharedResourcesAcquirer( SharedResourcesAcquirer* iResourceAcquirer);
     
     // AUX functions are defined in EventBase
     EventAuxiliary const& eventAuxiliary() const {return aux_;}
@@ -112,10 +119,18 @@ namespace edm {
     OrphanHandle<PROD>
     put(std::auto_ptr<PROD> product) {return put<PROD>(product, std::string());}
 
+    template<typename PROD>
+    OrphanHandle<PROD>
+    put(std::unique_ptr<PROD> product) {return put<PROD>(std::move(product), std::string());}
+
     ///Put a new product with a 'product instance name'
     template<typename PROD>
     OrphanHandle<PROD>
     put(std::auto_ptr<PROD> product, std::string const& productInstanceName);
+
+    template<typename PROD>
+    OrphanHandle<PROD>
+    put(std::unique_ptr<PROD> product, std::string const& productInstanceName);
 
     ///Returns a RefProd to a product before that product has been placed into the Event.
     /// The RefProd (and any Ref's made from it) will no work properly until after the
@@ -208,9 +223,17 @@ namespace edm {
 
     ModuleCallingContext const* moduleCallingContext() const { return moduleCallingContext_; }
 
+    void labelsForToken(EDGetToken const& iToken, ProductLabels& oLabels) const { provRecorder_.labelsForToken(iToken, oLabels); }
+
     typedef std::vector<std::pair<std::unique_ptr<WrapperBase>, BranchDescription const*> > ProductPtrVec;
 
+    EDProductGetter const&
+    productGetter() const;
+
   private:
+    //for testing
+    friend class ::testEventGetRefBeforePut;
+
     EventPrincipal const&
     eventPrincipal() const;
 
@@ -222,6 +245,9 @@ namespace edm {
 
     //override used by EventBase class
     virtual BasicHandle getByLabelImpl(std::type_info const& iWrapperType, std::type_info const& iProductType, InputTag const& iTag) const;
+
+    //override used by EventBase class
+    virtual BasicHandle getImpl(std::type_info const& iProductType, ProductID const& pid) const;
 
     // commit_() is called to complete the transaction represented by
     // this PrincipalGetAdapter. The friendships required seems gross, but any
@@ -339,6 +365,11 @@ namespace edm {
   template<typename PROD>
   OrphanHandle<PROD>
   Event::put(std::auto_ptr<PROD> product, std::string const& productInstanceName) {
+    return put(std::unique_ptr<PROD>(product.release()),productInstanceName);
+  }
+  template<typename PROD>
+  OrphanHandle<PROD>
+  Event::put(std::unique_ptr<PROD> product, std::string const& productInstanceName) {
     if(product.get() == 0) {                // null pointer is illegal
       TypeID typeID(typeid(PROD));
       principal_get_adapter_detail::throwOnPutOfNullProduct("Event", typeID, productInstanceName);
@@ -354,7 +385,7 @@ namespace edm {
     BranchDescription const& desc =
       provRecorder_.getBranchDescription(TypeID(*product), productInstanceName);
 
-    std::unique_ptr<Wrapper<PROD> > wp(new Wrapper<PROD>(product));
+    std::unique_ptr<Wrapper<PROD> > wp(new Wrapper<PROD>(std::move(product)));
     PROD const* prod = wp->product(); 
      
     typename boost::mpl::if_c<detail::has_donotrecordparents<PROD>::value,
@@ -524,14 +555,12 @@ namespace edm {
   void
   Event::fillView_(BasicHandle& bh, Handle<View<ELEMENT> >& result) const {
     std::vector<void const*> pointersToElements;
-    // the following is a shared pointer.
-    // It is not initialized here
-    helper_vector_ptr helpers;
+    FillViewHelperVector helpers;
     // the following must initialize the
-    //  shared pointer and fill the helper vector
+    //  fill the helper vector
     bh.wrapper()->fillView(bh.id(), pointersToElements, helpers);
 
-    auto newview = std::make_shared<View<ELEMENT> >(pointersToElements, helpers);
+    auto newview = std::make_shared<View<ELEMENT> >(pointersToElements, helpers, &(productGetter()));
 
     addToGotBranchIDs(*bh.provenance());
     gotViews_.push_back(newview);

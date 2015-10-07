@@ -1,8 +1,7 @@
 #include "PhysicsTools/PatUtils/plugins/ShiftedParticleMETcorrInputProducer.h"
 
 ShiftedParticleMETcorrInputProducer::ShiftedParticleMETcorrInputProducer(const edm::ParameterSet& cfg)
-  : moduleLabel_(cfg.getParameter<std::string>("@module_label"))
-  , srcOriginalToken_(consumes<CandidateView>(cfg.getParameter<edm::InputTag>("srcOriginal")))
+  : srcOriginalToken_(consumes<CandidateView>(cfg.getParameter<edm::InputTag>("srcOriginal")))
   , srcShiftedToken_(consumes<CandidateView>(cfg.getParameter<edm::InputTag>("srcShifted")))
 {
   produces<CorrMETData>();
@@ -13,7 +12,7 @@ ShiftedParticleMETcorrInputProducer::~ShiftedParticleMETcorrInputProducer()
 // nothing to be done yet...
 }
 
-void ShiftedParticleMETcorrInputProducer::produce(edm::Event& evt, const edm::EventSetup& es)
+void ShiftedParticleMETcorrInputProducer::produce(edm::StreamID, edm::Event& evt, const edm::EventSetup& es) const
 {
   edm::Handle<CandidateView> originalParticles;
   evt.getByToken(srcOriginalToken_, originalParticles);

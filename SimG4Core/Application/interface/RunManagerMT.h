@@ -1,7 +1,6 @@
 #ifndef SimG4Core_RunManagerMT_H
 #define SimG4Core_RunManagerMT_H
 
-#include <memory>
 #include "FWCore/Framework/interface/Event.h"
 #include "DataFormats/Common/interface/Handle.h"
 #include "FWCore/Framework/interface/EventSetup.h"
@@ -14,7 +13,6 @@
 #include "SimDataFormats/GeneratorProducts/interface/HepMCProduct.h"
 
 #include <memory>
-#include "boost/shared_ptr.hpp"
 
 namespace CLHEP {
   class HepJamesRandom;
@@ -39,14 +37,13 @@ class DDCompactView;
 class DDDWorld;
 class MagneticField;
 
-class G4RunManagerKernel;
+class G4MTRunManagerKernel;
 class G4Run;
 class G4Event;
 class G4Field;
 class RunAction;
 
 class SimRunInterface;
-//class ExceptionHandler;
 
 namespace HepPDT {
   class ParticleDataTable;
@@ -57,9 +54,12 @@ namespace HepPDT {
  * (acting as the Geant4 master thread), and there should be exactly
  * one instance of it. 
  */
+class RunManagerMTWorker;
 
 class RunManagerMT 
 {
+  friend class RunManagerMTWorker;
+
 public:
   RunManagerMT(edm::ParameterSet const & p);
   ~RunManagerMT();
@@ -70,7 +70,7 @@ public:
 
   void stopG4();
 
-  void             Connect(RunAction*);
+  void Connect(RunAction*);
 
   // Keep this to keep ExceptionHandler to compile, probably removed
   // later (or functionality moved to RunManagerMTWorker)
@@ -96,17 +96,27 @@ public:
     return m_physicsList.get();
   }
 
+  // In order to share the ChordFinderSetter (for
+  // G4MonopoleTransportation) with the worker threads, we need a
+  // non-const pointer. Thread-safety is handled inside
+  // ChordFinderStter with TLS. Should we consider a friend
+  // declaration here in order to avoid misuse?
+  sim::ChordFinderSetter *chordFinderSetterForWorker() const {
+    return m_chordFinderSetter.get();
+  }
+
 private:
   void terminateRun();
   void DumpMagneticField( const G4Field*) const;
 
-  G4RunManagerKernel * m_kernel;
+  G4MTRunManagerKernel * m_kernel;
     
   std::unique_ptr<PhysicsList> m_physicsList;
   bool m_managerInitialized;
   bool m_runTerminated;
-  const bool m_pUseMagneticField;
-  std::unique_ptr<RunAction> m_userRunAction;
+  bool m_pUseMagneticField;
+  RunAction* m_userRunAction;
+  G4Run* m_currentRun;
   std::unique_ptr<SimRunInterface> m_runInterface;
 
   const std::string m_PhysicsTablesDir;
@@ -116,8 +126,8 @@ private:
   edm::ParameterSet m_pField;
   edm::ParameterSet m_pPhysics; 
   edm::ParameterSet m_pRunAction;      
+  edm::ParameterSet m_g4overlap;
   std::vector<std::string> m_G4Commands;
-  //ExceptionHandler* m_CustomExceptionHandler ;
 
   std::unique_ptr<DDDWorld> m_world;
   SimActivityRegistry m_registry;
@@ -128,6 +138,7 @@ private:
     
   std::string m_FieldFile;
   std::string m_WriteFile;
+  std::string m_RegionFile;
 };
 
 #endif

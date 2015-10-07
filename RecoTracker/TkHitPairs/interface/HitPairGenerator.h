@@ -25,41 +25,15 @@ public:
 
   virtual ~HitPairGenerator() { }
 
-  virtual void setSeedingLayers(SeedingLayerSetsHits::SeedingLayerSet layers) = 0;
-
   virtual const OrderedHitPairs & run(
     const TrackingRegion& region, const edm::Event & ev, const edm::EventSetup& es);
-
-  // temporary interface for backward compatibility only
-  virtual void hitPairs( 
-    const TrackingRegion& reg, OrderedHitPairs & prs, const edm::EventSetup& es) {}
-
-  // new interface with no temphits copy
-  virtual HitDoublets doublets( const TrackingRegion& reg, 
-			     const edm::Event & ev,  const edm::EventSetup& es) {
-    assert(0=="not implemented");
-  }
-
 
   virtual void hitPairs( const TrackingRegion& reg, OrderedHitPairs & prs, 
       const edm::Event & ev,  const edm::EventSetup& es) = 0;
 
-  virtual HitPairGenerator* clone() const = 0;
-
-  virtual void clear() final {
-       localRA.update(thePairs.size());
-       OrderedHitPairs tmp; tmp.swap(thePairs);
-   /*
-     // back to initial allocation if too large
-     if (thePairs.capacity()> 4*m_capacity) {
-       OrderedHitPairs tmp; tmp.reserve(m_capacity); tmp.swap(thePairs);
-     } 
-     thePairs.clear(); 
-   */
-  } 
+  virtual void clear() final;
 
 private:
-//  unsigned int m_capacity;
   OrderedHitPairs thePairs;
   edm::RunningAverage localRA;
 

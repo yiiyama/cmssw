@@ -8,7 +8,7 @@ using namespace std;
 
 namespace reco {
 
-const char* TaggingVariableDescription[] = {
+const char* const TaggingVariableDescription[] = {
   /* [jetEnergy]                                = */ "jet energy",
   /* [jetPt]                                    = */ "jet transverse momentum",
   /* [trackJetPt]                               = */ "track-based jet transverse momentum",
@@ -27,7 +27,6 @@ const char* TaggingVariableDescription[] = {
   /* [trackPtRatio]                             = */ "track transverse momentum, relative to the jet axis, normalized to its energy",
   /* [trackPParRatio]                           = */ "track parallel momentum, along the jet axis, normalized to its energy",
 
-  /* [trackIp2dVal]                             = */ "track 2D impact parameter",
   /* [trackSip2dVal]                            = */ "track 2D signed impact parameter",
   /* [trackSip2dSig]                            = */ "track 2D signed impact parameter significance",
   /* [trackSip3dVal]                            = */ "track 3D signed impact parameter",
@@ -100,13 +99,15 @@ const char* TaggingVariableDescription[] = {
   /* [leptonDeltaR]                             = */ "pseudo)angular distance of the soft lepton to jet axis",
   /* [leptonRatio],                             = */ "momentum of the soft lepton over jet energy",
   /* [leptonRatioRel]                           = */ "momentum of the soft lepton parallel to jet axis over jet energy",
+  /* [electronMVA]                              = */ "mva output of the electron ID",
+
 
   /* [algoDiscriminator]                        = */ "discriminator output of an algorithm",
 
   /* [lastTaggingVariable]                      = */ ""
 };
 
-const char* TaggingVariableTokens[] = {
+const char* const TaggingVariableTokens[] = {
   /* [jetEnergy]                                = */ "jetEnergy",
   /* [jetPt]                                    = */ "jetPt",
   /* [trackJetPt]                               = */ "trackJetPt",
@@ -125,7 +126,6 @@ const char* TaggingVariableTokens[] = {
   /* [trackPtRatio]                             = */ "trackPtRatio",
   /* [trackPParRatio]                           = */ "trackPParRatio",
 
-  /* [trackIp2dVal]                             = */ "trackIp2dVal",
   /* [trackSip2dVal]                            = */ "trackSip2dVal",
   /* [trackSip2dSig]                            = */ "trackSip2dSig",
   /* [trackSip3dVal]                            = */ "trackSip3dVal",
@@ -199,6 +199,7 @@ const char* TaggingVariableTokens[] = {
   /* [leptonDeltaR]                             = */ "leptonDeltaR",
   /* [leptonRatio]                              = */ "leptonRatio",
   /* [leptonRatioRel],                          = */ "leptonRatioRel",
+  /* [electronMVA]                              = */ "electronMVA",
 
   /* [algoDiscriminator]                        = */ "algoDiscriminator",
 

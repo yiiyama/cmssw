@@ -68,6 +68,7 @@ namespace edm {
   class ProductRegistry;
   class StreamContext;
   class SharedResourcesAcquirer;
+  class ThinnedAssociationsHelper;
   namespace multicore {
     class MessageReceiverForSource;
   }
@@ -170,11 +171,11 @@ namespace edm {
     /// Const accessor for process history registry.
     ProcessHistoryRegistry const& processHistoryRegistry() const {return *processHistoryRegistry_;}
 
-    /// Non-const accessor for process history registry.
-    ProcessHistoryRegistry& processHistoryRegistryForUpdate() {return *processHistoryRegistry_;}
-
     /// Accessor for branchIDListHelper
     std::shared_ptr<BranchIDListHelper> branchIDListHelper() const {return branchIDListHelper_;}
+
+    /// Accessor for thinnedAssociationsHelper
+    std::shared_ptr<ThinnedAssociationsHelper> thinnedAssociationsHelper() const {return thinnedAssociationsHelper_;}
 
     /// Reset the remaining number of events/lumis to the maximum number.
     void repeat() {
@@ -206,9 +207,6 @@ namespace edm {
 
     /// Accessor for Process Configuration
     ProcessConfiguration const& processConfiguration() const {return moduleDescription().processConfiguration();}
-
-    /// Accessor for primary input source flag
-    bool primary() const {return primary_;}
 
     /// Accessor for global process identifier
     std::string const& processGUID() const {return processGUID_;}
@@ -345,7 +343,7 @@ namespace edm {
     void setTimestamp(Timestamp const& theTime) {time_ = theTime;}
 
     ProductRegistry& productRegistryUpdate() const {return *productRegistry_;}
-    ProcessHistoryRegistry& processHistoryRegistryUpdate() const {return *processHistoryRegistry_;}
+    ProcessHistoryRegistry& processHistoryRegistryForUpdate() const {return *processHistoryRegistry_;}
     ItemType state() const{return state_;}
     void setRunAuxiliary(RunAuxiliary* rp) {
       runAuxiliary_.reset(rp);
@@ -439,7 +437,7 @@ namespace edm {
     std::shared_ptr<ProductRegistry> productRegistry_;
     std::unique_ptr<ProcessHistoryRegistry> processHistoryRegistry_;
     std::shared_ptr<BranchIDListHelper> branchIDListHelper_;
-    bool const primary_;
+    std::shared_ptr<ThinnedAssociationsHelper> thinnedAssociationsHelper_;
     std::string processGUID_;
     Timestamp time_;
     mutable bool newRun_;

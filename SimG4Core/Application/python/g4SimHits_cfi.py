@@ -2,6 +2,9 @@ import FWCore.ParameterSet.Config as cms
 
 from SimG4Core.Application.hectorParameter_cfi import *
 
+## This object is used to customise g4SimHits for different running scenarios
+from Configuration.StandardSequences.Eras import eras
+
 common_heavy_suppression = cms.PSet(
     NeutronThreshold = cms.double(30.0),
     ProtonThreshold = cms.double(30.0),
@@ -35,7 +38,7 @@ common_UseLuminosity = cms.PSet(
     DelivLuminosity = cms.double(5000.)
 )
 
-g4SimHits = cms.EDProducer("OscarProducer",
+g4SimHits = cms.EDProducer("OscarMTProducer",
     NonBeamEvent = cms.bool(False),
     G4EventManagerVerbosity = cms.untracked.int32(0),
     G4StackManagerVerbosity = cms.untracked.int32(0),
@@ -47,12 +50,27 @@ g4SimHits = cms.EDProducer("OscarProducer",
     StorePhysicsTables = cms.bool(False),
     RestorePhysicsTables = cms.bool(False),
     CheckOverlap = cms.untracked.bool(False),
-    G4Commands = cms.vstring(''),
+    G4CheckOverlap = cms.PSet(
+        Tolerance = cms.untracked.double(0.0),
+        Resolution = cms.untracked.int32(10000),
+        RegionFlag = cms.untracked.bool(True),  # if true - selection by G4Region name
+        gdmlFlag = cms.untracked.bool(True),  # if true - dump gdml file
+        PVname = cms.string(''),
+        LVname = cms.string(''),
+        NodeNames = cms.vstring('World')
+    ),
+    G4Commands = cms.vstring(),
     FileNameField = cms.untracked.string(''),
     FileNameGDML = cms.untracked.string(''),
+    FileNameRegions = cms.untracked.string(''),
     Watchers = cms.VPSet(),
-    HepMCProductLabel = cms.InputTag("generator"),
+    HepMCProductLabel = cms.InputTag("generatorSmeared"),
     theLHCTlinkTag = cms.InputTag("LHCTransport"),
+    CustomUIsession = cms.untracked.PSet(
+        Type = cms.untracked.string("MessageLogger"), # MessageLoggerThreadPrefix, FilePerThread; the non-default ones are meant only for MT debugging
+        ThreadPrefix = cms.untracked.string("W"), # For MessageLoggerThreadPrefix
+        ThreadFile = cms.untracked.string("sim_output_thread"), # For FilePerThread
+    ),
     MagneticField = cms.PSet(
         UseLocalMagFieldManager = cms.bool(False),
         Verbosity = cms.untracked.bool(False),
@@ -104,10 +122,12 @@ g4SimHits = cms.EDProducer("OscarProducer",
         HadPhysics  = cms.untracked.bool(True),
         FlagBERT    = cms.untracked.bool(False),
         GflashEcal    = cms.bool(False),
+        GflashHcal    = cms.bool(False),
+        GflashEcalHad = cms.bool(False),
+        GflashHcalHad = cms.bool(False),
         bField        = cms.double(3.8),
         energyScaleEB = cms.double(1.032),
         energyScaleEE = cms.double(1.024),
-        GflashHcal    = cms.bool(False),
         ExoticaPhysicsSS = cms.untracked.bool(False),
         RusRoElectronEnergyLimit  = cms.double(0.0),
         RusRoEcalElectron         = cms.double(1.0),
@@ -123,8 +143,8 @@ g4SimHits = cms.EDProducer("OscarProducer",
     ),
     Generator = cms.PSet(
         HectorEtaCut,
-        # string HepMCProductLabel = "VtxSmeared"
-        HepMCProductLabel = cms.string('generator'),
+        # string HepMCProductLabel = "generatorSmeared"
+        HepMCProductLabel = cms.string('generatorSmeared'),
         ApplyPCuts = cms.bool(True),
         ApplyPtransCut = cms.bool(False),
         MinPCut = cms.double(0.04), ## the cut is in GeV 
@@ -146,6 +166,7 @@ g4SimHits = cms.EDProducer("OscarProducer",
     EventAction = cms.PSet(
         debug = cms.untracked.bool(False),
         StopFile = cms.string('StopRun'),
+        PrintRandomSeed = cms.bool(False),
         CollapsePrimaryVertices = cms.bool(False)
     ),
     StackingAction = cms.PSet(
@@ -239,7 +260,7 @@ g4SimHits = cms.EDProducer("OscarProducer",
         BirkC2          = cms.double(0.0),
         SlopeLightYield = cms.double(0.02),
         StoreSecondary  = cms.bool(False),
-        TimeSliceUnit   = cms.int32(1),
+        TimeSliceUnit   = cms.double(1),
         IgnoreTrackID   = cms.bool(False),
         XtalMat         = cms.untracked.string('E_PbWO4'),
         TestBeam        = cms.untracked.bool(False),
@@ -253,17 +274,17 @@ g4SimHits = cms.EDProducer("OscarProducer",
         BirkC3              = cms.double(1.75),
         BirkC2              = cms.double(0.142),
         BirkC1              = cms.double(0.0052),
-        UseShowerLibrary    = cms.bool(False),
-        UseParametrize      = cms.bool(True),
-        UsePMTHits          = cms.bool(True),
-        UseFibreBundleHits  = cms.bool(True),
+        UseShowerLibrary    = cms.bool(True),
+        UseParametrize      = cms.bool(False),
+        UsePMTHits          = cms.bool(False),
+        UseFibreBundleHits  = cms.bool(False),
         TestNumberingScheme = cms.bool(False),
         EminHitHB           = cms.double(0.0),
         EminHitHE           = cms.double(0.0),
         EminHitHO           = cms.double(0.0),
         EminHitHF           = cms.double(0.0),
         BetaThreshold       = cms.double(0.7),
-        TimeSliceUnit       = cms.int32(1),
+        TimeSliceUnit       = cms.double(1),
         IgnoreTrackID       = cms.bool(False),
         HEDarkening         = cms.bool(False),
         HFDarkening         = cms.bool(False),
@@ -284,8 +305,8 @@ g4SimHits = cms.EDProducer("OscarProducer",
         CFibre            = cms.double(0.5),
         PEPerGeV          = cms.double(0.31),
         TrackEM           = cms.bool(False),
-        UseShowerLibrary  = cms.bool(False),
-        UseHFGflash       = cms.bool(True),
+        UseShowerLibrary  = cms.bool(True),
+        UseHFGflash       = cms.bool(False),
         EminLibrary       = cms.double(0.0),
         OnlyLong          = cms.bool(True),
         LambdaMean        = cms.double(350.0),
@@ -298,15 +319,15 @@ g4SimHits = cms.EDProducer("OscarProducer",
         ParametrizeLast   = cms.untracked.bool(False)
     ),
     HFShowerLibrary = cms.PSet(
-        FileName        = cms.FileInPath('SimG4CMS/Calo/data/hfshowerlibrary_lhep_140_edm.root'),
+        FileName        = cms.FileInPath('SimG4CMS/Calo/data/HFShowerLibrary_oldpmt_noatt_eta4_16en_v3.root'),
         BackProbability = cms.double(0.2),
         TreeEMID        = cms.string('emParticles'),
         TreeHadID       = cms.string('hadParticles'),
         Verbosity       = cms.untracked.bool(False),
         ApplyFiducialCut= cms.bool(True),
-        BranchPost      = cms.untracked.string('_R.obj'),
-        BranchEvt       = cms.untracked.string('HFShowerLibraryEventInfos_hfshowerlib_HFShowerLibraryEventInfo'),
-        BranchPre       = cms.untracked.string('HFShowerPhotons_hfshowerlib_')
+        BranchPost      = cms.untracked.string(''),
+        BranchEvt       = cms.untracked.string(''),
+        BranchPre       = cms.untracked.string('')
     ),
     HFShowerPMT = cms.PSet(
         common_UsePMT,
@@ -346,7 +367,7 @@ g4SimHits = cms.EDProducer("OscarProducer",
     CastorSD = cms.PSet(
         useShowerLibrary               = cms.bool(True),
         minEnergyInGeVforUsingSLibrary = cms.double(1.0),
-        nonCompensationFactor          = cms.double(0.85),
+        nonCompensationFactor          = cms.double(0.817),
         Verbosity                      = cms.untracked.int32(0)
     ),
     CastorShowerLibrary =  cms.PSet(
@@ -355,6 +376,19 @@ g4SimHits = cms.EDProducer("OscarProducer",
         BranchEM  = cms.untracked.string('emParticles.'),
         BranchHAD = cms.untracked.string('hadParticles.'),
         Verbosity = cms.untracked.bool(False)
+    ),
+    BHMSD = cms.PSet(
+         Verbosity = cms.untracked.int32(0)
+    ),
+    FastTimerSD = cms.PSet(
+        Verbosity = cms.untracked.int32(0)
+    ),
+    HGCSD = cms.PSet(
+        Verbosity        = cms.untracked.int32(0),
+        TimeSliceUnit    = cms.double(1),
+        IgnoreTrackID    = cms.bool(False),
+        EminHit          = cms.double(0.0),
+        CheckID          = cms.untracked.bool(True),
     ),
     TotemSD = cms.PSet(
         Verbosity = cms.untracked.int32(0)
@@ -404,4 +438,7 @@ g4SimHits = cms.EDProducer("OscarProducer",
 )
 
 
-
+##
+## Change the HFShowerLibrary file used for Run 2
+##
+eras.run2_common.toModify( g4SimHits.HFShowerLibrary, FileName = 'SimG4CMS/Calo/data/HFShowerLibrary_npmt_noatt_eta4_16en_v3.root' )

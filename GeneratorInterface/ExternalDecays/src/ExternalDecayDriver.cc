@@ -9,6 +9,13 @@
 #include "GeneratorInterface/PhotosInterface/interface/PhotosInterfaceBase.h"
 #include "HepMC/GenEvent.h"
 #include "FWCore/Concurrency/interface/SharedResourceNames.h"
+// LHE Run
+#include "SimDataFormats/GeneratorProducts/interface/LHERunInfoProduct.h"
+#include "GeneratorInterface/LHEInterface/interface/LHERunInfo.h"
+
+// LHE Event
+#include "SimDataFormats/GeneratorProducts/interface/LHEEventProduct.h"
+#include "GeneratorInterface/LHEInterface/interface/LHEEvent.h"
 
 using namespace gen;
 using namespace edm;
@@ -26,14 +33,13 @@ ExternalDecayDriver::ExternalDecayDriver( const ParameterSet& pset )
   
   for (unsigned int ip=0; ip<extGenNames.size(); ++ip ){
     std::string curSet = extGenNames[ip];
-    if ( curSet == "EvtGen" || curSet == "EvtGenLHC91"){
-      fEvtGenInterface = (EvtGenInterfaceBase*)(EvtGenFactory::get()->create("EvtGenLHC91", pset.getUntrackedParameter< ParameterSet >(curSet)));
+    if ( curSet == "EvtGen"){
+      fEvtGenInterface = (EvtGenInterfaceBase*)(EvtGenFactory::get()->create("EvtGen", pset.getUntrackedParameter< ParameterSet >(curSet)));
       exSharedResources.emplace_back(edm::SharedResourceNames::kEvtGen);
       exSharedResources.emplace_back(edm::SharedResourceNames::kPythia6);
       exSharedResources.emplace_back(gen::FortranInstance::kFortranInstance);
     }
     else if( curSet == "EvtGen130"){
-      std::cout << "EvtGen130" << std::endl;
       fEvtGenInterface = (EvtGenInterfaceBase*)(EvtGenFactory::get()->create("EvtGen130", pset.getUntrackedParameter< ParameterSet >(curSet)));
       exSharedResources.emplace_back(edm::SharedResourceNames::kEvtGen);
       exSharedResources.emplace_back(edm::SharedResourceNames::kPythia8);
@@ -55,9 +61,9 @@ ExternalDecayDriver::ExternalDecayDriver( const ParameterSet& pset )
 	exSharedResources.emplace_back(edm::SharedResourceNames::kPhotos);
       }
     }
-    else if (curSet == "Photospp355" ){
+    else if (curSet == "Photospp" || curSet == "Photospp356" ){
       if ( !fPhotosInterface ){
-        fPhotosInterface = (PhotosInterfaceBase*)(PhotosFactory::get()->create("Photospp355", pset.getUntrackedParameter< ParameterSet>(curSet)));
+        fPhotosInterface = (PhotosInterfaceBase*)(PhotosFactory::get()->create("Photospp356", pset.getUntrackedParameter< ParameterSet>(curSet)));
         exSharedResources.emplace_back(edm::SharedResourceNames::kPhotos);
       }
     }
@@ -71,9 +77,13 @@ ExternalDecayDriver::~ExternalDecayDriver()
    if ( fPhotosInterface ) delete fPhotosInterface;
 }
 
+
+HepMC::GenEvent* ExternalDecayDriver::decay(HepMC::GenEvent* evt, lhef::LHEEvent *lheEvent){
+  if(fTauolaInterface) fTauolaInterface->SetLHE(lheEvent);
+  return decay(evt);
+}
 HepMC::GenEvent* ExternalDecayDriver::decay( HepMC::GenEvent* evt )
 {
-   
    if ( !fIsInitialized ) return evt;
    
    if ( fEvtGenInterface ){  
@@ -111,6 +121,10 @@ void ExternalDecayDriver::init( const edm::EventSetup& es )
      for ( std::vector<int>::const_iterator i=fEvtGenInterface->operatesOnParticles().begin();
 	   i!=fEvtGenInterface->operatesOnParticles().end(); i++ )
        fPDGs.push_back( *i );
+       for ( unsigned int iss=0; iss<fEvtGenInterface->specialSettings().size(); iss++ ){
+         fSpecialSettings.push_back( fEvtGenInterface->specialSettings()[iss] );
+       }
+
    }
    
    

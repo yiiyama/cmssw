@@ -1,5 +1,5 @@
-#ifndef MuonSensitiveDetector_h
-#define MuonSensitiveDetector_h
+#ifndef SimG4CMS_Muon_MuonSensitiveDetector_h
+#define SimG4CMS_Muon_MuonSensitiveDetector_h
 
 /** \class MuonSensitiveDetector
  *
@@ -15,6 +15,7 @@
  * Add SimTracks selection
  */
 
+#include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "SimG4Core/Notification/interface/Observer.h"
 #include "SimG4Core/Notification/interface/BeginOfEvent.h"
 #include "SimG4Core/Notification/interface/EndOfEvent.h"

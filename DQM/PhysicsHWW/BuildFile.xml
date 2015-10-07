@@ -2,8 +2,10 @@
 <use   name="CommonTools/ParticleFlow"/>
 <use   name="RecoEgamma/EgammaTools"/>
 <use   name="RecoVertex/PrimaryVertexProducer"/>
+<use   name="RecoJets/JetProducers"/>
 <use   name="TrackingTools/IPTools"/>
 <use   name="JetMETCorrections/Objects"/>
+<use   name="Geometry/TrackerGeometryBuilder"/>
 <export>
   <lib   name="1"/>
 </export>

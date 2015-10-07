@@ -149,7 +149,7 @@ namespace edm {
 
     typedef std::vector<WorkerInPath> PathWorkers;
 
-    StreamSchedule(TriggerResultInserter* inserter,
+    StreamSchedule(std::shared_ptr<TriggerResultInserter> inserter,
                    std::shared_ptr<ModuleRegistry>,
                    ParameterSet& proc_pset,
                    service::TriggerNamesService& tns,
@@ -191,9 +191,25 @@ namespace edm {
     ///adds to oLabelsToFill the labels for all paths in the process
     void availablePaths(std::vector<std::string>& oLabelsToFill) const;
 
+    ///adds to oLabelsToFill the labels for all trigger paths in the process
+    ///this is different from availablePaths because it includes the
+    ///empty paths so matches the entries in TriggerResults exactly.
+    void triggerPaths(std::vector<std::string>& oLabelsToFill) const;
+
+    ///adds to oLabelsToFill the labels for all end paths in the process
+    void endPaths(std::vector<std::string>& oLabelsToFill) const;
+
     ///adds to oLabelsToFill in execution order the labels of all modules in path iPathLabel
     void modulesInPath(std::string const& iPathLabel,
                        std::vector<std::string>& oLabelsToFill) const;
+
+    void moduleDescriptionsInPath(std::string const& iPathLabel,
+                                  std::vector<ModuleDescription const*>& descriptions,
+                                  unsigned int hint) const;
+
+    void moduleDescriptionsInEndPath(std::string const& iEndPathLabel,
+                                     std::vector<ModuleDescription const*>& descriptions,
+                                     unsigned int hint) const;
 
     /// Return the number of events this StreamSchedule has tried to process
     /// (inclues both successes and failures, including failures due
@@ -242,6 +258,28 @@ namespace edm {
     }
     
   private:
+    //Sentry class to only send a signal if an
+    // exception occurs. An exception is identified
+    // by the destructor being called without first
+    // calling completedSuccessfully().
+    class SendTerminationSignalIfException {
+    public:
+      SendTerminationSignalIfException(edm::ActivityRegistry* iReg, edm::StreamContext const* iContext):
+      reg_(iReg),
+      context_(iContext){}
+      ~SendTerminationSignalIfException() {
+        if(reg_) {
+          reg_->preStreamEarlyTerminationSignal_(*context_,TerminationOrigin::ExceptionFromThisContext);
+        }
+      }
+      void completedSuccessfully() {
+        reg_ = nullptr;
+      }
+    private:
+      edm::ActivityRegistry* reg_;
+      StreamContext const* context_;
+    };
+
     /// returns the action table
     ExceptionToActionTable const& actionTable() const {
       return workerManager_.actionTable();
@@ -341,6 +379,7 @@ namespace edm {
     T::setStreamContext(streamContext_, ep);
     StreamScheduleSignalSentry<T> sentry(actReg_.get(), &streamContext_);
 
+    SendTerminationSignalIfException terminationSentry(actReg_.get(), &streamContext_);
     // This call takes care of the unscheduled processing.
     workerManager_.processOneOccurrence<T>(ep, es, streamID_, &streamContext_, &streamContext_, cleaningUpAfterException);
 
@@ -389,6 +428,8 @@ namespace edm {
       }
       throw;
     }
+    terminationSentry.completedSuccessfully();
+    
     //If we got here no other exception has happened so we can propogate any Service related exceptions
     sentry.allowThrow();
   }
@@ -401,6 +442,8 @@ namespace edm {
 
     T::setStreamContext(streamContext_, ep);
     StreamScheduleSignalSentry<T> sentry(actReg_.get(), &streamContext_);
+
+    SendTerminationSignalIfException terminationSentry(actReg_.get(), &streamContext_);
 
     // This call takes care of the unscheduled processing.
     workerManager_.processOneOccurrence<T>(ep, es, streamID_, &streamContext_, &streamContext_, cleaningUpAfterException);
@@ -420,6 +463,8 @@ namespace edm {
       }
       throw;
     }
+    terminationSentry.completedSuccessfully();
+
     //If we got here no other exception has happened so we can propogate any Service related exceptions
     sentry.allowThrow();
   }

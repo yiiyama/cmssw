@@ -9,7 +9,7 @@ hltPixelTracks = cms.EDProducer("PixelTracksProducer",
         ComponentName = cms.string('PixelFitterByHelixProjections'),
         TTRHBuilder = cms.string('WithoutRefit')
     ),
-    SeedProducer = cms.InputTag("pixelTripletSeeds","PixelTriplet"),
+    SeedProducer = cms.InputTag("pixelTripletSeeds"),
     RegionFactoryPSet = cms.PSet(
         RegionPSetBlock,
         ComponentName = cms.string('GlobalRegionProducer')
@@ -42,7 +42,12 @@ hltPixelTracksHighPtTkMuIso = hltPixelTracks.clone()
 hltPixelTracksForPhotons = hltPixelTracks.clone()
 hltPixelTracksForEgamma = hltPixelTracks.clone()
 hltPixelTracksElectrons = hltPixelTracks.clone()
+hltPixelTracksForHighPt = hltPixelTracks.clone()
+hltHighPtPixelTracks = hltPixelTracks.clone()
 
+hltPixelTracksForNoPU = hltPixelTracks.clone()
+hltDummyLocalPixel = FastSimulation.HighLevelTrigger.DummyModule_cfi.dummyModule.clone()
+HLTDoLocalPixelSequenceRegForNoPU = cms.Sequence(hltDummyLocalPixel)
 
 hltFastPixelHitsVertexVHbb = FastSimulation.HighLevelTrigger.DummyModule_cfi.dummyModule.clone()
 hltFastPixelTracksVHbb = hltPixelTracks.clone()

@@ -96,6 +96,7 @@ namespace edm {
   ActivityRegistry::connectGlobals(ActivityRegistry& iOther) {
      preallocateSignal_.connect(std::cref(iOther.preallocateSignal_));
      postBeginJobSignal_.connect(std::cref(iOther.postBeginJobSignal_));
+     preEndJobSignal_.connect(std::cref(iOther.preEndJobSignal_));
      postEndJobSignal_.connect(std::cref(iOther.postEndJobSignal_));
 
      jobFailureSignal_.connect(std::cref(iOther.jobFailureSignal_));
@@ -120,10 +121,17 @@ namespace edm {
 
      preForkReleaseResourcesSignal_.connect(std::cref(iOther.preForkReleaseResourcesSignal_));
      postForkReacquireResourcesSignal_.connect(std::cref(iOther.postForkReacquireResourcesSignal_));
+    
+    preStreamEarlyTerminationSignal_.connect(std::cref(iOther.preStreamEarlyTerminationSignal_));
+    preGlobalEarlyTerminationSignal_.connect(std::cref(iOther.preGlobalEarlyTerminationSignal_));
+    preSourceEarlyTerminationSignal_.connect(std::cref(iOther.preSourceEarlyTerminationSignal_));
+
   }
 
   void
   ActivityRegistry::connectLocals(ActivityRegistry& iOther) {
+
+     preBeginJobSignal_.connect(std::cref(iOther.preBeginJobSignal_));
 
      preModuleBeginStreamSignal_.connect(std::cref(iOther.preModuleBeginStreamSignal_));
      postModuleBeginStreamSignal_.connect(std::cref(iOther.postModuleBeginStreamSignal_));
@@ -262,7 +270,9 @@ namespace edm {
   void
   ActivityRegistry::copySlotsFrom(ActivityRegistry& iOther) {
     copySlotsToFrom(preallocateSignal_,iOther.preallocateSignal_);
+    copySlotsToFrom(preBeginJobSignal_, iOther.preBeginJobSignal_);
     copySlotsToFrom(postBeginJobSignal_, iOther.postBeginJobSignal_);
+    copySlotsToFromReverse(preEndJobSignal_, iOther.preEndJobSignal_);
     copySlotsToFromReverse(postEndJobSignal_, iOther.postEndJobSignal_);
 
     copySlotsToFromReverse(jobFailureSignal_, iOther.jobFailureSignal_);
@@ -317,6 +327,10 @@ namespace edm {
 
     copySlotsToFrom(prePathEventSignal_, iOther.prePathEventSignal_);
     copySlotsToFromReverse(postPathEventSignal_, iOther.postPathEventSignal_);
+
+    copySlotsToFrom(preStreamEarlyTerminationSignal_, iOther.preStreamEarlyTerminationSignal_);
+    copySlotsToFrom(preGlobalEarlyTerminationSignal_, iOther.preGlobalEarlyTerminationSignal_);
+    copySlotsToFrom(preSourceEarlyTerminationSignal_, iOther.preSourceEarlyTerminationSignal_);
 
     /*
     copySlotsToFrom(preProcessEventSignal_, iOther.preProcessEventSignal_);

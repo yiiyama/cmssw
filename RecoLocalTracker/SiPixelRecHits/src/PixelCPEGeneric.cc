@@ -5,7 +5,6 @@
 
 // this is needed to get errors from templates
 #include "RecoLocalTracker/SiPixelRecHits/interface/SiPixelTemplate.h"
-#include "DataFormats/SiPixelDetId/interface/PXBDetId.h"
 #include "DataFormats/DetId/interface/DetId.h"
 
 
@@ -18,7 +17,7 @@
 #include <iostream>
 using namespace std;
 
-//#define NEW_CPEERROR // must be constistent with base.cc, generic cc/h and genericProducer.cc 
+#define NEW_CPEERROR // must be constistent with base.cc, generic cc/h and genericProducer.cc 
 
 namespace {
   constexpr float micronsToCm = 1.0e-4;
@@ -32,19 +31,21 @@ namespace {
 PixelCPEGeneric::PixelCPEGeneric(edm::ParameterSet const & conf, 
 				 const MagneticField * mag,
                                  const TrackerGeometry& geom,
+				 const TrackerTopology& ttopo,
 				 const SiPixelLorentzAngle * lorentzAngle, 
 				 const SiPixelGenErrorDBObject * genErrorDBObject, 
 				 const SiPixelLorentzAngle * lorentzAngleWidth=0) 
-  : PixelCPEBase(conf, mag, geom, lorentzAngle, genErrorDBObject, 0,lorentzAngleWidth,0) {
+  : PixelCPEBase(conf, mag, geom, ttopo, lorentzAngle, genErrorDBObject, 0,lorentzAngleWidth,0) {
 #else
 PixelCPEGeneric::PixelCPEGeneric(edm::ParameterSet const & conf, 
 				 const MagneticField * mag,
                                  const TrackerGeometry& geom,
+				 const TrackerTopology& ttopo,
 				 const SiPixelLorentzAngle * lorentzAngle, 
 				 const SiPixelGenErrorDBObject * genErrorDBObject, 
 				 const SiPixelTemplateDBObject * templateDBobject,
 				 const SiPixelLorentzAngle * lorentzAngleWidth=0) 
-  : PixelCPEBase(conf, mag, geom, lorentzAngle, genErrorDBObject, templateDBobject,lorentzAngleWidth,0) {
+  : PixelCPEBase(conf, mag, geom, ttopo, lorentzAngle, genErrorDBObject, templateDBobject,lorentzAngleWidth,0) {
 #endif
 
   if (theVerboseLevel > 0) 
@@ -73,32 +74,9 @@ PixelCPEGeneric::PixelCPEGeneric(edm::ParameterSet const & conf,
   DoCosmics_                 = conf.getParameter<bool>("DoCosmics");
   //LoadTemplatesFromDB_       = conf.getParameter<bool>("LoadTemplatesFromDB");
 
-  bool isUpgrade=false;
-  if ( conf.exists("Upgrade") && conf.getParameter<bool>("Upgrade")) {
-    isUpgrade=true;
-    xerr_barrel_ln_= {0.00114,0.00104,0.00214};
-    xerr_barrel_ln_def_=0.00425;
-    yerr_barrel_ln_= {0.00299,0.00203,0.0023,0.00237,0.00233,0.00243,0.00232,0.00259,0.00176};
-    yerr_barrel_ln_def_=0.00245;
-    xerr_endcap_= {0.00151,0.000813,0.00221};
-    xerr_endcap_def_=0.00218;
-    yerr_endcap_= {0.00261,0.00107,0.00264};
-    yerr_endcap_def_=0.00357;
-    
-    if ( conf.exists("SmallPitch") && conf.getParameter<bool>("SmallPitch")) {
-      xerr_barrel_l1_= {0.00104, 0.000691, 0.00122};
-      xerr_barrel_l1_def_=0.00321;
-      yerr_barrel_l1_= {0.00199,0.00136,0.0015,0.00153,0.00152,0.00171,0.00154,0.00157,0.00154};
-      yerr_barrel_l1_def_=0.00164;
-    }
-    else{
-      xerr_barrel_l1_= {0.00114,0.00104,0.00214};
-      xerr_barrel_l1_def_=0.00425;
-      yerr_barrel_l1_= {0.00299,0.00203,0.0023,0.00237,0.00233,0.00243,0.00232,0.00259,0.00176};
-      yerr_barrel_l1_def_=0.00245;
-    }
-  }
-  isUpgrade_=isUpgrade;
+  // no clear what upgrade means, is it phase1, phase2? Probably delete.
+  isUpgrade_= false;
+  if ( conf.exists("Upgrade") && conf.getParameter<bool>("Upgrade")) isUpgrade_=true;
 
   // Select the position error source 
   // For upgrde and cosmics force the use simple errors 
@@ -106,7 +84,6 @@ PixelCPEGeneric::PixelCPEGeneric(edm::ParameterSet const & conf,
 
   if ( !UseErrorsFromTemplates_ && ( TruncatePixelCharge_       || 
 				     IrradiationBiasCorrection_ || 
-				     DoCosmics_                 ||
 				     LoadTemplatesFromDB_ ) )  {
     throw cms::Exception("PixelCPEGeneric::PixelCPEGeneric: ") 
       << "\nERROR: UseErrorsFromTemplates_ is set to False in PixelCPEGeneric_cfi.py. "
@@ -150,8 +127,49 @@ PixelCPEGeneric::PixelCPEGeneric(edm::ParameterSet const & conf,
 
 #endif // NEW_CPEERROR
 
+  }  else {
+    if(MYDEBUG) cout<<" Use simple parametrised errors "<<endl;
   } // if ( UseErrorsFromTemplates_ )
   
+
+  // Rechit errors in case other, more correct, errors are not vailable
+  // This are constants. Maybe there is a more efficienct way to store them.
+  if(!isUpgrade_) {  // normal case
+    xerr_barrel_l1_= {0.00115, 0.00120, 0.00088};
+    xerr_barrel_l1_def_=0.01030;
+    yerr_barrel_l1_= {0.00375,0.00230,0.00250,0.00250,0.00230,0.00230,0.00210,0.00210,0.00240};
+    yerr_barrel_l1_def_=0.00210;
+    xerr_barrel_ln_= {0.00115, 0.00120, 0.00088};
+    xerr_barrel_ln_def_=0.01030;
+    yerr_barrel_ln_= {0.00375,0.00230,0.00250,0.00250,0.00230,0.00230,0.00210,0.00210,0.00240};
+    yerr_barrel_ln_def_=0.00210;
+    xerr_endcap_= {0.0020, 0.0020};
+    xerr_endcap_def_=0.0020;
+    yerr_endcap_= {0.00210};
+    yerr_endcap_def_=0.00075;
+  } else { // isUpgrade=true, funny case
+    xerr_barrel_ln_= {0.00114,0.00104,0.00214};
+    xerr_barrel_ln_def_=0.00425;
+    yerr_barrel_ln_= {0.00299,0.00203,0.0023,0.00237,0.00233,0.00243,0.00232,0.00259,0.00176};
+    yerr_barrel_ln_def_=0.00245;
+    xerr_endcap_= {0.00151,0.000813,0.00221};
+    xerr_endcap_def_=0.00218;
+    yerr_endcap_= {0.00261,0.00107,0.00264};
+    yerr_endcap_def_=0.00357;
+    
+    if ( conf.exists("SmallPitch") && conf.getParameter<bool>("SmallPitch")) {
+      xerr_barrel_l1_= {0.00104, 0.000691, 0.00122};
+      xerr_barrel_l1_def_=0.00321;
+      yerr_barrel_l1_= {0.00199,0.00136,0.0015,0.00153,0.00152,0.00171,0.00154,0.00157,0.00154};
+      yerr_barrel_l1_def_=0.00164;
+    } else {
+      xerr_barrel_l1_= {0.00114,0.00104,0.00214};
+      xerr_barrel_l1_def_=0.00425;
+      yerr_barrel_l1_= {0.00299,0.00203,0.0023,0.00237,0.00233,0.00243,0.00232,0.00259,0.00176};
+      yerr_barrel_l1_def_=0.00245;
+    }
+  } // if isUpgrade
+
   if(MYDEBUG) {
     cout << "From PixelCPEGeneric::PixelCPEGeneric(...)" << endl;
     cout << "(int)UseErrorsFromTemplates_ = " << (int)UseErrorsFromTemplates_    << endl;
@@ -161,21 +179,6 @@ PixelCPEGeneric::PixelCPEGeneric(edm::ParameterSet const & conf,
     cout << "(int)LoadTemplatesFromDB_    = " << (int)LoadTemplatesFromDB_       << endl;
   }
 
-
-  // Default case for rechit errors in case other, more correct, errors are not vailable
-  // This are constants. Maybe there is a more efficienct way to store them.
-  xerr_barrel_l1_= {0.00115, 0.00120, 0.00088};
-  xerr_barrel_l1_def_=0.01030;
-  yerr_barrel_l1_= {0.00375,0.00230,0.00250,0.00250,0.00230,0.00230,0.00210,0.00210,0.00240};
-  yerr_barrel_l1_def_=0.00210;
-  xerr_barrel_ln_= {0.00115, 0.00120, 0.00088};
-  xerr_barrel_ln_def_=0.01030;
-  yerr_barrel_ln_= {0.00375,0.00230,0.00250,0.00250,0.00230,0.00230,0.00210,0.00210,0.00240};
-  yerr_barrel_ln_def_=0.00210;
-  xerr_endcap_= {0.0020, 0.0020};
-  xerr_endcap_def_=0.0020;
-  yerr_endcap_= {0.00210};
-  yerr_endcap_def_=0.00075;
 
 }
 
@@ -521,11 +524,17 @@ generic_position_formula( int size,                //!< Size of this projection.
 
  #ifdef EDM_ML_DEBUG
   //--- Debugging output
+#warning "Debug printouts in PixelCPEGeneric.cc has been commented because they cannot be compiled"
+  /*   This part is commented because some variables used here are not defined !!
   if (theVerboseLevel > 20) {
-    if ( theDetParam.thePart == GeomDetEnumerators::PixelBarrel ) {
+    if ( theDetParam.thePart == GeomDetEnumerators::PixelBarrel || theDetParam.thePart == GeomDetEnumerators::P1PXB ) {
       cout << "\t >>> We are in the Barrel." ;
-    } else {
+    } else if ( theDetParam.thePart == GeomDetEnumerators::PixelEndcap || 
+		theDetParam.thePart == GeomDetEnumerators::P1PXEC ||
+		theDetParam.thePart == GeomDetEnumerators::P2PXEC ) {
       cout << "\t >>> We are in the Forward." ;
+    } else {
+      cout << "\t >>> We are in an unexpected subdet " << theDetParam.thePart;
     }
     cout 
       << "\n\t >>> cot(angle) = " << cot_angle << "  pitch = " << pitch << "  size = " << size
@@ -549,6 +558,7 @@ generic_position_formula( int size,                //!< Size of this projection.
       cout << "\n\t >>> Used angle information." ;
     cout << endl;
   }
+  */
 #endif
 
   return hit_pos;
@@ -655,13 +665,11 @@ PixelCPEGeneric::localError(DetParam const & theDetParam,  ClusterParam & theClu
 	<<sizex<<" "<<sizey<<endl;
   }
 
-  //if likely(UseErrorsFromTemplates_ && (qBin_!= 0) ) {
   if likely(UseErrorsFromTemplates_ ) {
       //
       // Use template errors 
       //cout << "Track angles are known. We can use either errors from templates or the error parameterization from DB." << endl;
       
-
       if ( !edgex ) { // Only use this for non-edge clusters
 	if ( sizex == 1 ) {
 	  if ( !bigInX ) {xerr = theClusterParam.sx1;} 
@@ -684,13 +692,13 @@ PixelCPEGeneric::localError(DetParam const & theDetParam,  ClusterParam & theClu
   } else  { // simple errors
 
     // This are the simple errors, hardcoded in the code 
-    cout << "Track angles are not known and we are processing cosmics." << endl; 
+    //cout << "Track angles are not known " << endl; 
     //cout << "Default angle estimation which assumes track from PV (0,0,0) does not work." << endl;
       
-    if ( theDetParam.thePart == GeomDetEnumerators::PixelBarrel )  {
+    if ( theDetParam.thePart == GeomDetEnumerators::PixelBarrel || theDetParam.thePart == GeomDetEnumerators::P1PXB )  {
 
       DetId id = (theDetParam.theDet->geographicalId());
-      int layer=PXBDetId(id).layer();
+      int layer=ttopo_.layer(id);
       if ( layer==1 ) {
 	if ( !edgex ) {
 	  if ( sizex<=xerr_barrel_l1_.size() ) xerr=xerr_barrel_l1_[sizex-1];
@@ -713,7 +721,9 @@ PixelCPEGeneric::localError(DetParam const & theDetParam,  ClusterParam & theClu
 	}
       }
 
-    } else { // EndCap
+    } else if ( theDetParam.thePart == GeomDetEnumerators::PixelEndcap || 
+		theDetParam.thePart == GeomDetEnumerators::P1PXEC  ||
+		theDetParam.thePart == GeomDetEnumerators::P2PXEC )  { // EndCap
 
       if ( !edgex ) {
 	if ( sizex<=xerr_endcap_.size() ) xerr=xerr_endcap_[sizex-1];

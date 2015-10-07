@@ -24,6 +24,13 @@ from SimMuon.Configuration.SimMuon_cff import *
 # it is no longer run here.
 #
 from SimGeneral.Configuration.SimGeneral_cff import *
-doAllDigi = cms.Sequence(calDigi+muonDigi)
-pdigi = cms.Sequence(cms.SequencePlaceholder("randomEngineStateProducer")*cms.SequencePlaceholder("mix")*doAllDigi*addPileupInfo)
+
+# add updating the GEN information by default
+from Configuration.StandardSequences.Generator_cff import *
+from GeneratorInterface.Core.generatorSmeared_cfi import *
+
+doAllDigi = cms.Sequence(generatorSmeared*calDigi+muonDigi)
+pdigi = cms.Sequence(generatorSmeared*fixGenInfo*cms.SequencePlaceholder("randomEngineStateProducer")*cms.SequencePlaceholder("mix")*doAllDigi*addPileupInfo)
 pdigi_valid = cms.Sequence(pdigi)
+pdigi_nogen=cms.Sequence(generatorSmeared*cms.SequencePlaceholder("randomEngineStateProducer")*cms.SequencePlaceholder("mix")*doAllDigi*addPileupInfo)
+pdigi_valid_nogen=cms.Sequence(pdigi_nogen)

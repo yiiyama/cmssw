@@ -49,7 +49,6 @@ namespace reco {
       trackPtRatio,                             // track transverse momentum, relative to the jet axis, normalized to its energy
       trackPParRatio,                           // track parallel momentum, along the jet axis, normalized to its energy
 
-      trackIp2dSig,                             // track 2D impact parameter signifncance
       trackSip2dVal,                            // track 2D signed impact parameter
       trackSip2dSig,                            // track 2D signed impact parameter significance
       trackSip3dVal,                            // track 3D signed impact parameter
@@ -122,6 +121,7 @@ namespace reco {
       leptonDeltaR,                             // pseudo)angular distance of the soft lepton to jet axis
       leptonRatio,                              // momentum of the soft lepton over jet energy
       leptonRatioRel,                           // momentum of the soft lepton parallel to jet axis over jet energy
+      electronMVA,                              // mva output from electron ID
 
       algoDiscriminator,                        // discriminator output of an algorithm
 
@@ -132,8 +132,8 @@ namespace reco {
   // import only TaggingVariableName type into reco namespace
   using btau::TaggingVariableName;
 
-  extern const char* TaggingVariableDescription[];
-  extern const char* TaggingVariableTokens[];
+  extern const char* const TaggingVariableDescription[];
+  extern const char* const TaggingVariableTokens[];
 
   TaggingVariableName getTaggingVariableName ( const std::string & name );
 

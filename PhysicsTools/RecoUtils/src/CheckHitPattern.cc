@@ -11,7 +11,7 @@
 #include "DataFormats/SiPixelDetId/interface/PixelSubdetector.h"
 //#include "DataFormats/SiStripDetId/interface/SiStripDetId.h"
 #include "DataFormats/TrackerCommon/interface/TrackerTopology.h"
-#include "Geometry/Records/interface/IdealGeometryRecord.h"
+#include "Geometry/Records/interface/TrackerTopologyRcd.h"
 
 #include "TrackingTools/Records/interface/TransientTrackRecord.h"
 #include "DataFormats/Math/interface/deltaPhi.h"
@@ -26,7 +26,7 @@ void CheckHitPattern::init(const edm::EventSetup& iSetup) {
 
   //Retrieve tracker topology from geometry
   edm::ESHandle<TrackerTopology> tTopoHandle;
-  iSetup.get<IdealGeometryRecord>().get(tTopoHandle);
+  iSetup.get<TrackerTopologyRcd>().get(tTopoHandle);
   const TrackerTopology* const tTopo = tTopoHandle.product();
 
   //
@@ -83,21 +83,7 @@ void CheckHitPattern::init(const edm::EventSetup& iSetup) {
 CheckHitPattern::DetInfo CheckHitPattern::interpretDetId(DetId detId, const TrackerTopology* tTopo) {
   // Convert detId to a pair<uint32, uint32> consisting of the numbers used by HitPattern 
   // to identify subdetector and layer number respectively.
-  if (detId.subdetId() == StripSubdetector::TIB) {
-    return DetInfo( detId.subdetId(), tTopo->tibLayer(detId) );
-  } else if (detId.subdetId() == StripSubdetector::TOB) {
-    return DetInfo( detId.subdetId(), tTopo->tobLayer(detId) );
-  } else if (detId.subdetId() == StripSubdetector::TID) {
-    return DetInfo( detId.subdetId(), tTopo->tidWheel(detId) );
-  } else if (detId.subdetId() == StripSubdetector::TEC) {
-    return DetInfo( detId.subdetId(), tTopo->tecWheel(detId) );
-  } else if (detId.subdetId() == PixelSubdetector::PixelBarrel) {
-    return DetInfo( detId.subdetId(), tTopo->pxbLayer(detId) );
-  } else if (detId.subdetId() == PixelSubdetector::PixelEndcap) {
-    return DetInfo( detId.subdetId(), tTopo->pxfDisk(detId) );
-  } else {
-    throw cms::Exception("NotFound","Found DetId that is not in Tracker");
-  }   
+  return DetInfo( detId.subdetId(), tTopo->layer(detId) );
 }
 
 bool CheckHitPattern::barrel(uint32_t subDet) {

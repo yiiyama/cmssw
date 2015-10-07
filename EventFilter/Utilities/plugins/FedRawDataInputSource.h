@@ -20,6 +20,10 @@
 #include "FWCore/ServiceRegistry/interface/Service.h"
 #include "IOPool/Streamer/interface/FRDEventMessage.h"
 
+#include "EventFilter/FEDInterface/interface/FED1024.h"
+
+#include "DataFormats/Provenance/interface/LuminosityBlockAuxiliary.h"
+
 class FEDRawDataCollection;
 class InputSourceDescription;
 class ParameterSet;
@@ -55,12 +59,12 @@ private:
   virtual void rewind_() override;
 
   void maybeOpenNewLumiSection(const uint32_t lumiSection);
+  void createBoLSFile(const uint32_t lumiSection,bool checkIfExists);
   evf::EvFDaqDirector::FileStatus nextEvent();
   evf::EvFDaqDirector::FileStatus getNextEvent();
-  edm::Timestamp fillFEDRawDataCollection(std::auto_ptr<FEDRawDataCollection>&);
+  edm::Timestamp fillFEDRawDataCollection(FEDRawDataCollection&);
   void deleteFile(std::string const&);
   int grabNextJsonFile(boost::filesystem::path const&);
-  void renameToNextFree(std::string const& fileName) const;
 
   void readSupervisor();
   void readWorker(unsigned int tid);
@@ -80,13 +84,15 @@ private:
   unsigned int eventChunkBlock_; // how much read(2) asks at the time
   unsigned int readBlocks_;
   unsigned int numBuffers_;
+  unsigned int maxBufferedFiles_;
   unsigned int numConcurrentReads_;
+  std::atomic<unsigned int> readingFilesCount_;
 
   // get LS from filename instead of event header
   const bool getLSFromFilename_;
   const bool verifyAdler32_;
+  const bool verifyChecksum_;
   const bool useL1EventID_;
-  const bool testModeNoBuilderUnit_;
 
   const edm::RunNumber_t runNumber_;
 
@@ -103,6 +109,7 @@ private:
   uint32_t eventRunNumber_=0;
   uint32_t GTPEventID_ = 0;
   uint32_t L1EventID_ = 0;
+  unsigned char *tcds_pointer_;
   unsigned int eventsThisLumi_;
   unsigned long eventsThisRun_ = 0;
 

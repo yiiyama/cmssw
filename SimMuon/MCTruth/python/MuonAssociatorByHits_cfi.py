@@ -2,7 +2,7 @@ import FWCore.ParameterSet.Config as cms
 
 
 muonAssociatorByHitsCommonParameters = cms.PSet(
-    dumpInputCollections = cms.bool(False),
+    dumpInputCollections = cms.untracked.bool(False),
     #
     #....... general input parameters
     #
@@ -64,6 +64,8 @@ muonAssociatorByHitsCommonParameters = cms.PSet(
     #
     associatePixel = cms.bool(True),
     associateStrip = cms.bool(True),
+    pixelSimLinkSrc = cms.InputTag("simSiPixelDigis"),
+    stripSimLinkSrc = cms.InputTag("simSiStripDigis"),
     associateRecoTracks = cms.bool(True),
     #                                
     ROUList = cms.vstring('TrackerHitsTIBLowTof', 

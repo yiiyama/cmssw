@@ -30,6 +30,7 @@ the worker is reset().
 #include "FWCore/Framework/interface/ProductHolderIndexAndSkipBit.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/ServiceRegistry/interface/ActivityRegistry.h"
+#include "FWCore/ServiceRegistry/interface/ConsumesInfo.h"
 #include "FWCore/ServiceRegistry/interface/InternalContext.h"
 #include "FWCore/ServiceRegistry/interface/ModuleCallingContext.h"
 #include "FWCore/ServiceRegistry/interface/ParentContext.h"
@@ -43,8 +44,10 @@ the worker is reset().
 
 #include "FWCore/Framework/interface/Frameworkfwd.h"
 
+#include <map>
 #include <memory>
 #include <sstream>
+#include <string>
 #include <vector>
 
 namespace edm {
@@ -54,7 +57,9 @@ namespace edm {
   class ProductHolderIndexAndSkipBit;
   class StreamID;
   class StreamContext;
-  
+  class ProductRegistry;
+  class ThinnedAssociationsHelper;
+
   namespace workerhelper {
     template< typename O> class CallImpl;
   }
@@ -84,6 +89,7 @@ namespace edm {
 
     void preForkReleaseResources() {implPreForkReleaseResources();}
     void postForkReacquireResources(unsigned int iChildIndex, unsigned int iNumberOfChildren) {implPostForkReacquireResources(iChildIndex, iNumberOfChildren);}
+    void registerThinnedAssociations(ProductRegistry const& registry, ThinnedAssociationsHelper& helper) { implRegisterThinnedAssociations(registry, helper); }
 
     void reset() { state_ = Ready; }
 
@@ -95,21 +101,27 @@ namespace edm {
     ///The signals are required to live longer than the last call to 'doWork'
     /// this was done to improve performance based on profiling
     void setActivityRegistry(std::shared_ptr<ActivityRegistry> areg);
-    
+
     void setEarlyDeleteHelper(EarlyDeleteHelper* iHelper);
-    
+
     //Used to make EDGetToken work
     virtual void updateLookup(BranchType iBranchType,
                       ProductHolderIndexHelper const&) = 0;
 
     virtual void modulesDependentUpon(std::vector<const char*>& oModuleLabels) const = 0;
-    
+
+    virtual void modulesWhoseProductsAreConsumed(std::vector<ModuleDescription const*>& modules,
+                                                 ProductRegistry const& preg,
+                                                 std::map<std::string, ModuleDescription const*> const& labelsToDesc) const = 0;
+
+    virtual std::vector<ConsumesInfo> consumesInfo() const = 0;
+
     virtual Types moduleType() const =0;
 
     void clearCounters() {
       timesRun_ = timesVisited_ = timesPassed_ = timesFailed_ = timesExcept_ = 0;
     }
-    
+
     int timesRun() const { return timesRun_; }
     int timesVisited() const { return timesVisited_; }
     int timesPassed() const { return timesPassed_; }
@@ -124,6 +136,9 @@ namespace edm {
     virtual std::string workerType() const = 0;
     virtual bool implDo(EventPrincipal&, EventSetup const& c,
                         ModuleCallingContext const* mcc) = 0;
+    virtual bool implDoPrePrefetchSelection(StreamID id,
+                                            EventPrincipal& ep,
+                                            ModuleCallingContext const* mcc) = 0;
     virtual bool implDoBegin(RunPrincipal& rp, EventSetup const& c,
                              ModuleCallingContext const* mcc) = 0;
     virtual bool implDoStreamBegin(StreamID id, RunPrincipal& rp, EventSetup const& c,
@@ -144,9 +159,9 @@ namespace edm {
     virtual void implEndJob() = 0;
     virtual void implBeginStream(StreamID) = 0;
     virtual void implEndStream(StreamID) = 0;
-    
+
     void resetModuleDescription(ModuleDescription const*);
-    
+
     ActivityRegistry* activityRegistry() { return actReg_.get(); }
 
   private:
@@ -162,6 +177,8 @@ namespace edm {
     virtual void implPreForkReleaseResources() = 0;
     virtual void implPostForkReacquireResources(unsigned int iChildIndex,
                                                unsigned int iNumberOfChildren) = 0;
+    virtual void implRegisterThinnedAssociations(ProductRegistry const&, ThinnedAssociationsHelper&) = 0;
+
     int timesRun_;
     int timesVisited_;
     int timesPassed_;
@@ -175,7 +192,7 @@ namespace edm {
     std::shared_ptr<cms::Exception> cached_exception_; // if state is 'exception'
 
     std::shared_ptr<ActivityRegistry> actReg_;
-    
+
     EarlyDeleteHelper* earlyDeleteHelper_;
   };
 
@@ -209,7 +226,7 @@ namespace edm {
       ModuleCallingContext const* imcc = mcc;
       while(imcc->type() == ParentContext::Type::kModule) {
 	std::ostringstream iost;
-        iost << "Calling method for unscheduled module " 
+        iost << "Calling method for unscheduled module "
              << imcc->moduleDescription()->moduleName() << "/'"
              << imcc->moduleDescription()->moduleLabel() << "'";
         ex.addContext(iost.str());
@@ -217,7 +234,7 @@ namespace edm {
       }
       if(imcc->type() == ParentContext::Type::kInternal) {
         std::ostringstream iost;
-        iost << "Calling method for unscheduled module " 
+        iost << "Calling method for unscheduled module "
              << imcc->moduleDescription()->moduleName() << "/'"
              << imcc->moduleDescription()->moduleLabel() << "' (probably inside some kind of mixing module)";
         ex.addContext(iost.str());
@@ -225,7 +242,7 @@ namespace edm {
       }
       while(imcc->type() == ParentContext::Type::kModule) {
         std::ostringstream iost;
-        iost << "Calling method for unscheduled module " 
+        iost << "Calling method for unscheduled module "
              << imcc->moduleDescription()->moduleName() << "/'"
              << imcc->moduleDescription()->moduleLabel() << "'";
         ex.addContext(iost.str());
@@ -265,14 +282,19 @@ namespace edm {
       typedef OccurrenceTraits<EventPrincipal, BranchActionStreamBegin> Arg;
       static bool call(Worker* iWorker, StreamID,
                        EventPrincipal& ep, EventSetup const& es,
-                       ActivityRegistry* actReg,
+                       ActivityRegistry* /* actReg */,
                        ModuleCallingContext const* mcc,
-                       Arg::Context const* context) {
+                       Arg::Context const* /* context*/) {
         //Signal sentry is handled by the module
         return iWorker->implDo(ep,es, mcc);
       }
+      static bool prePrefetchSelection(Worker* iWorker,StreamID id,
+                                       typename Arg::MyPrincipal & ep,
+                                       ModuleCallingContext const* mcc) {
+        return iWorker->implDoPrePrefetchSelection(id,ep,mcc);
+      }
     };
-    
+
     template<>
     class CallImpl<OccurrenceTraits<RunPrincipal, BranchActionGlobalBegin>>{
     public:
@@ -284,6 +306,11 @@ namespace edm {
                        Arg::Context const* context) {
         ModuleSignalSentry<Arg> cpp(actReg, context, mcc);
         return iWorker->implDoBegin(ep,es, mcc);
+      }
+      static bool prePrefetchSelection(Worker* iWorker,StreamID id,
+                                       typename Arg::MyPrincipal & ep,
+                                       ModuleCallingContext const* mcc) {
+        return true;
       }
     };
     template<>
@@ -298,6 +325,11 @@ namespace edm {
         ModuleSignalSentry<Arg> cpp(actReg, context, mcc);
         return iWorker->implDoStreamBegin(id,ep,es, mcc);
       }
+      static bool prePrefetchSelection(Worker* iWorker,StreamID id,
+                                       typename Arg::MyPrincipal & ep,
+                                       ModuleCallingContext const* mcc) {
+        return true;
+      }
     };
     template<>
     class CallImpl<OccurrenceTraits<RunPrincipal, BranchActionGlobalEnd>>{
@@ -310,6 +342,11 @@ namespace edm {
                        Arg::Context const* context) {
         ModuleSignalSentry<Arg> cpp(actReg, context, mcc);
         return iWorker->implDoEnd(ep,es, mcc);
+      }
+      static bool prePrefetchSelection(Worker* iWorker,StreamID id,
+                                       typename Arg::MyPrincipal & ep,
+                                       ModuleCallingContext const* mcc) {
+        return true;
       }
     };
     template<>
@@ -324,8 +361,13 @@ namespace edm {
         ModuleSignalSentry<Arg> cpp(actReg, context, mcc);
         return iWorker->implDoStreamEnd(id,ep,es, mcc);
       }
+      static bool prePrefetchSelection(Worker* iWorker,StreamID id,
+                                       typename Arg::MyPrincipal & ep,
+                                       ModuleCallingContext const* mcc) {
+        return true;
+      }
     };
-    
+
     template<>
     class CallImpl<OccurrenceTraits<LuminosityBlockPrincipal, BranchActionGlobalBegin>>{
     public:
@@ -337,6 +379,12 @@ namespace edm {
                        Arg::Context const* context) {
         ModuleSignalSentry<Arg> cpp(actReg, context, mcc);
         return iWorker->implDoBegin(ep,es, mcc);
+      }
+
+      static bool prePrefetchSelection(Worker* iWorker,StreamID id,
+                                       typename Arg::MyPrincipal & ep,
+                                       ModuleCallingContext const* mcc) {
+        return true;
       }
     };
     template<>
@@ -351,8 +399,14 @@ namespace edm {
         ModuleSignalSentry<Arg> cpp(actReg, context, mcc);
         return iWorker->implDoStreamBegin(id,ep,es, mcc);
       }
-    };
-    
+
+      static bool prePrefetchSelection(Worker* iWorker,StreamID id,
+                                       typename Arg::MyPrincipal & ep,
+                                       ModuleCallingContext const* mcc) {
+        return true;
+      }
+};
+
     template<>
     class CallImpl<OccurrenceTraits<LuminosityBlockPrincipal, BranchActionGlobalEnd>>{
     public:
@@ -365,6 +419,12 @@ namespace edm {
         ModuleSignalSentry<Arg> cpp(actReg, context, mcc);
         return iWorker->implDoEnd(ep,es, mcc);
       }
+      static bool prePrefetchSelection(Worker* iWorker,StreamID id,
+                                       typename Arg::MyPrincipal & ep,
+                                       ModuleCallingContext const* mcc) {
+        return true;
+      }
+
     };
     template<>
     class CallImpl<OccurrenceTraits<LuminosityBlockPrincipal, BranchActionStreamEnd>>{
@@ -378,11 +438,17 @@ namespace edm {
         ModuleSignalSentry<Arg> cpp(actReg, context, mcc);
         return iWorker->implDoStreamEnd(id,ep,es, mcc);
       }
+      
+      static bool prePrefetchSelection(Worker* iWorker,StreamID id,
+                                       typename Arg::MyPrincipal & ep,
+                                       ModuleCallingContext const* mcc) {
+        return true;
+      }
     };
   }
-  
+
   template <typename T>
-  bool Worker::doWork(typename T::MyPrincipal& ep, 
+  bool Worker::doWork(typename T::MyPrincipal& ep,
                       EventSetup const& es,
                       StreamID streamID,
                       ParentContext const& parentContext,
@@ -409,7 +475,14 @@ namespace edm {
 
         if (T::isEvent_) {
           ++timesRun_;
-
+          
+          //if have TriggerResults based selection we want to reject the event before doing prefetching
+          if( not workerhelper::CallImpl<T>::prePrefetchSelection(this,streamID,ep,&moduleCallingContext_) ) {
+            state_ = Pass;
+            ++timesPassed_;
+            rc = true;
+            return;
+          }
           // Prefetch products the module declares it consumes (not including the products it maybe consumes)
           std::vector<ProductHolderIndexAndSkipBit> const& items = itemsToGetFromEvent();
           for(auto const& item : items) {

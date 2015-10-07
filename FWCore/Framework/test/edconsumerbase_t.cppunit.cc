@@ -25,7 +25,6 @@
 
 #include "DataFormats/Provenance/interface/ProductHolderIndexHelper.h"
 #include "DataFormats/TestObjects/interface/ToyProducts.h"
-#include "FWCore/RootAutoLibraryLoader/interface/RootAutoLibraryLoader.h"
 
 #include "DataFormats/Provenance/interface/EventID.h"
 #include "DataFormats/Provenance/interface/ProductID.h"
@@ -54,17 +53,10 @@ public:
 
 };
 
-static bool s_alreadyCalledLoader = false;
-
 ///registration of the test so that the runner can find it
 CPPUNIT_TEST_SUITE_REGISTRATION(TestEDConsumerBase);
 
 void TestEDConsumerBase::setUp() {
-  
-  if (!s_alreadyCalledLoader) {
-    edm::RootAutoLibraryLoader::enable();
-    s_alreadyCalledLoader = true;
-  }
 }
 
 namespace {
@@ -133,27 +125,27 @@ TestEDConsumerBase::testRegularType()
   
   edm::ProductHolderIndexHelper helper;
   
-  edm::TypeWithDict typeWithDictProductID(typeid(edm::ProductID));
-  edm::TypeWithDict typeWithDictEventID(typeid(edm::EventID));
-  edm::TypeWithDict typeWithDictVectorInt(typeid(std::vector<int>));
-  edm::TypeWithDict typeWithDictSetInt(typeid(std::set<int>));
-  edm::TypeWithDict typeWithDictVSimpleDerived(typeid(std::vector<edmtest::SimpleDerived>));
+  edm::TypeID typeIDProductID(typeid(edm::ProductID));
+  edm::TypeID typeIDEventID(typeid(edm::EventID));
+  edm::TypeID typeIDVectorInt(typeid(std::vector<int>));
+  edm::TypeID typeIDSetInt(typeid(std::set<int>));
+  edm::TypeID typeIDVSimpleDerived(typeid(std::vector<edmtest::SimpleDerived>));
   
-  helper.insert(typeWithDictVectorInt, "labelC", "instanceC", "processC"); // 0, 1, 2
-  helper.insert(typeWithDictVectorInt, "label",  "instance",  "process");  // 3, 4, 5
-  helper.insert(typeWithDictEventID, "labelB", "instanceB", "processB");   // 6, 7
-  helper.insert(typeWithDictEventID, "label",  "instanceB", "processB");   // 8, 9
-  helper.insert(typeWithDictEventID, "labelX", "instanceB", "processB");   // 10, 11
-  helper.insert(typeWithDictEventID, "labelB", "instance",  "processB");   // 12, 13
-  helper.insert(typeWithDictEventID, "labelB", "instanceX", "processB");   // 14, 15
-  helper.insert(typeWithDictEventID, "labelB", "instanceB", "processB1");  // 16, 5
-  helper.insert(typeWithDictEventID, "labelB", "instanceB", "processB3");  // 17, 5
-  helper.insert(typeWithDictEventID, "labelB", "instanceB", "processB2");  // 18, 5
-  helper.insert(typeWithDictProductID, "label",  "instance",  "process");  // 19, 20
-  helper.insert(typeWithDictEventID, "label",  "instance",  "process");    // 21, 22
-  helper.insert(typeWithDictProductID, "labelA", "instanceA", "processA"); // 23, 24
-  helper.insert(typeWithDictSetInt, "labelC", "instanceC", "processC"); // 25, 26
-  helper.insert(typeWithDictVSimpleDerived, "labelC", "instanceC", "processC"); // 27, 28, 29, 30
+  helper.insert(typeIDVectorInt, "labelC", "instanceC", "processC"); // 0, 1, 2
+  helper.insert(typeIDVectorInt, "label",  "instance",  "process");  // 3, 4, 5
+  helper.insert(typeIDEventID, "labelB", "instanceB", "processB");   // 6, 7
+  helper.insert(typeIDEventID, "label",  "instanceB", "processB");   // 8, 9
+  helper.insert(typeIDEventID, "labelX", "instanceB", "processB");   // 10, 11
+  helper.insert(typeIDEventID, "labelB", "instance",  "processB");   // 12, 13
+  helper.insert(typeIDEventID, "labelB", "instanceX", "processB");   // 14, 15
+  helper.insert(typeIDEventID, "labelB", "instanceB", "processB1");  // 16, 5
+  helper.insert(typeIDEventID, "labelB", "instanceB", "processB3");  // 17, 5
+  helper.insert(typeIDEventID, "labelB", "instanceB", "processB2");  // 18, 5
+  helper.insert(typeIDProductID, "label",  "instance",  "process");  // 19, 20
+  helper.insert(typeIDEventID, "label",  "instance",  "process");    // 21, 22
+  helper.insert(typeIDProductID, "labelA", "instanceA", "processA"); // 23, 24
+  helper.insert(typeIDSetInt, "labelC", "instanceC", "processC"); // 25, 26
+  helper.insert(typeIDVSimpleDerived, "labelC", "instanceC", "processC"); // 27, 28, 29, 30
 
   helper.setFrozen();
 
@@ -315,27 +307,27 @@ TestEDConsumerBase::testViewType()
 {
   edm::ProductHolderIndexHelper helper;
   
-  edm::TypeWithDict typeWithDictProductID(typeid(edm::ProductID));
-  edm::TypeWithDict typeWithDictEventID(typeid(edm::EventID));
-  edm::TypeWithDict typeWithDictVectorInt(typeid(std::vector<int>));
-  edm::TypeWithDict typeWithDictSetInt(typeid(std::set<int>));
-  edm::TypeWithDict typeWithDictVSimpleDerived(typeid(std::vector<edmtest::SimpleDerived>));
+  edm::TypeID typeIDProductID(typeid(edm::ProductID));
+  edm::TypeID typeIDEventID(typeid(edm::EventID));
+  edm::TypeID typeIDVectorInt(typeid(std::vector<int>));
+  edm::TypeID typeIDSetInt(typeid(std::set<int>));
+  edm::TypeID typeIDVSimpleDerived(typeid(std::vector<edmtest::SimpleDerived>));
   
-  helper.insert(typeWithDictVectorInt, "labelC", "instanceC", "processC"); // 0, 1, 2
-  helper.insert(typeWithDictVectorInt, "label",  "instance",  "process");  // 3, 4, 5
-  helper.insert(typeWithDictEventID, "labelB", "instanceB", "processB");   // 6, 7
-  helper.insert(typeWithDictEventID, "label",  "instanceB", "processB");   // 8, 9
-  helper.insert(typeWithDictEventID, "labelX", "instanceB", "processB");   // 10, 11
-  helper.insert(typeWithDictEventID, "labelB", "instance",  "processB");   // 12, 13
-  helper.insert(typeWithDictEventID, "labelB", "instanceX", "processB");   // 14, 15
-  helper.insert(typeWithDictEventID, "labelB", "instanceB", "processB1");  // 16, 5
-  helper.insert(typeWithDictEventID, "labelB", "instanceB", "processB3");  // 17, 5
-  helper.insert(typeWithDictEventID, "labelB", "instanceB", "processB2");  // 18, 5
-  helper.insert(typeWithDictProductID, "label",  "instance",  "process");  // 19, 20
-  helper.insert(typeWithDictEventID, "label",  "instance",  "process");    // 21, 22
-  helper.insert(typeWithDictProductID, "labelA", "instanceA", "processA"); // 23, 24
-  helper.insert(typeWithDictSetInt, "labelC", "instanceC", "processC"); // 25, 26
-  helper.insert(typeWithDictVSimpleDerived, "labelC", "instanceC", "processC"); // 27, 28, 29, 30
+  helper.insert(typeIDVectorInt, "labelC", "instanceC", "processC"); // 0, 1, 2
+  helper.insert(typeIDVectorInt, "label",  "instance",  "process");  // 3, 4, 5
+  helper.insert(typeIDEventID, "labelB", "instanceB", "processB");   // 6, 7
+  helper.insert(typeIDEventID, "label",  "instanceB", "processB");   // 8, 9
+  helper.insert(typeIDEventID, "labelX", "instanceB", "processB");   // 10, 11
+  helper.insert(typeIDEventID, "labelB", "instance",  "processB");   // 12, 13
+  helper.insert(typeIDEventID, "labelB", "instanceX", "processB");   // 14, 15
+  helper.insert(typeIDEventID, "labelB", "instanceB", "processB1");  // 16, 5
+  helper.insert(typeIDEventID, "labelB", "instanceB", "processB3");  // 17, 5
+  helper.insert(typeIDEventID, "labelB", "instanceB", "processB2");  // 18, 5
+  helper.insert(typeIDProductID, "label",  "instance",  "process");  // 19, 20
+  helper.insert(typeIDEventID, "label",  "instance",  "process");    // 21, 22
+  helper.insert(typeIDProductID, "labelA", "instanceA", "processA"); // 23, 24
+  helper.insert(typeIDSetInt, "labelC", "instanceC", "processC"); // 25, 26
+  helper.insert(typeIDVSimpleDerived, "labelC", "instanceC", "processC"); // 27, 28, 29, 30
   
   helper.setFrozen();
   
@@ -436,27 +428,27 @@ TestEDConsumerBase::testMany()
   
   edm::ProductHolderIndexHelper helper;
   
-  edm::TypeWithDict typeWithDictProductID(typeid(edm::ProductID));
-  edm::TypeWithDict typeWithDictEventID(typeid(edm::EventID));
-  edm::TypeWithDict typeWithDictVectorInt(typeid(std::vector<int>));
-  edm::TypeWithDict typeWithDictSetInt(typeid(std::set<int>));
-  edm::TypeWithDict typeWithDictVSimpleDerived(typeid(std::vector<edmtest::SimpleDerived>));
+  edm::TypeID typeIDProductID(typeid(edm::ProductID));
+  edm::TypeID typeIDEventID(typeid(edm::EventID));
+  edm::TypeID typeIDVectorInt(typeid(std::vector<int>));
+  edm::TypeID typeIDSetInt(typeid(std::set<int>));
+  edm::TypeID typeIDVSimpleDerived(typeid(std::vector<edmtest::SimpleDerived>));
   
-  helper.insert(typeWithDictVectorInt, "labelC", "instanceC", "processC"); // 0, 1, 2
-  helper.insert(typeWithDictVectorInt, "label",  "instance",  "process");  // 3, 4, 5
-  helper.insert(typeWithDictEventID, "labelB", "instanceB", "processB");   // 6, 7
-  helper.insert(typeWithDictEventID, "label",  "instanceB", "processB");   // 8, 9
-  helper.insert(typeWithDictEventID, "labelX", "instanceB", "processB");   // 10, 11
-  helper.insert(typeWithDictEventID, "labelB", "instance",  "processB");   // 12, 13
-  helper.insert(typeWithDictEventID, "labelB", "instanceX", "processB");   // 14, 15
-  helper.insert(typeWithDictEventID, "labelB", "instanceB", "processB1");  // 16, 5
-  helper.insert(typeWithDictEventID, "labelB", "instanceB", "processB3");  // 17, 5
-  helper.insert(typeWithDictEventID, "labelB", "instanceB", "processB2");  // 18, 5
-  helper.insert(typeWithDictProductID, "label",  "instance",  "process");  // 19, 20
-  helper.insert(typeWithDictEventID, "label",  "instance",  "process");    // 21, 22
-  helper.insert(typeWithDictProductID, "labelA", "instanceA", "processA"); // 23, 24
-  helper.insert(typeWithDictSetInt, "labelC", "instanceC", "processC"); // 25, 26
-  helper.insert(typeWithDictVSimpleDerived, "labelC", "instanceC", "processC"); // 27, 28, 29, 30
+  helper.insert(typeIDVectorInt, "labelC", "instanceC", "processC"); // 0, 1, 2
+  helper.insert(typeIDVectorInt, "label",  "instance",  "process");  // 3, 4, 5
+  helper.insert(typeIDEventID, "labelB", "instanceB", "processB");   // 6, 7
+  helper.insert(typeIDEventID, "label",  "instanceB", "processB");   // 8, 9
+  helper.insert(typeIDEventID, "labelX", "instanceB", "processB");   // 10, 11
+  helper.insert(typeIDEventID, "labelB", "instance",  "processB");   // 12, 13
+  helper.insert(typeIDEventID, "labelB", "instanceX", "processB");   // 14, 15
+  helper.insert(typeIDEventID, "labelB", "instanceB", "processB1");  // 16, 5
+  helper.insert(typeIDEventID, "labelB", "instanceB", "processB3");  // 17, 5
+  helper.insert(typeIDEventID, "labelB", "instanceB", "processB2");  // 18, 5
+  helper.insert(typeIDProductID, "label",  "instance",  "process");  // 19, 20
+  helper.insert(typeIDEventID, "label",  "instance",  "process");    // 21, 22
+  helper.insert(typeIDProductID, "labelA", "instanceA", "processA"); // 23, 24
+  helper.insert(typeIDSetInt, "labelC", "instanceC", "processC"); // 25, 26
+  helper.insert(typeIDVSimpleDerived, "labelC", "instanceC", "processC"); // 27, 28, 29, 30
   
   helper.setFrozen();
 
@@ -482,27 +474,27 @@ TestEDConsumerBase::testMay()
  
   edm::ProductHolderIndexHelper helper;
   
-  edm::TypeWithDict typeWithDictProductID(typeid(edm::ProductID));
-  edm::TypeWithDict typeWithDictEventID(typeid(edm::EventID));
-  edm::TypeWithDict typeWithDictVectorInt(typeid(std::vector<int>));
-  edm::TypeWithDict typeWithDictSetInt(typeid(std::set<int>));
-  edm::TypeWithDict typeWithDictVSimpleDerived(typeid(std::vector<edmtest::SimpleDerived>));
+  edm::TypeID typeIDProductID(typeid(edm::ProductID));
+  edm::TypeID typeIDEventID(typeid(edm::EventID));
+  edm::TypeID typeIDVectorInt(typeid(std::vector<int>));
+  edm::TypeID typeIDSetInt(typeid(std::set<int>));
+  edm::TypeID typeIDVSimpleDerived(typeid(std::vector<edmtest::SimpleDerived>));
   
-  helper.insert(typeWithDictVectorInt, "labelC", "instanceC", "processC"); // 0, 1, 2
-  helper.insert(typeWithDictVectorInt, "label",  "instance",  "process");  // 3, 4, 5
-  helper.insert(typeWithDictEventID, "labelB", "instanceB", "processB");   // 6, 7
-  helper.insert(typeWithDictEventID, "label",  "instanceB", "processB");   // 8, 9
-  helper.insert(typeWithDictEventID, "labelX", "instanceB", "processB");   // 10, 11
-  helper.insert(typeWithDictEventID, "labelB", "instance",  "processB");   // 12, 13
-  helper.insert(typeWithDictEventID, "labelB", "instanceX", "processB");   // 14, 15
-  helper.insert(typeWithDictEventID, "labelB", "instanceB", "processB1");  // 16, 5
-  helper.insert(typeWithDictEventID, "labelB", "instanceB", "processB3");  // 17, 5
-  helper.insert(typeWithDictEventID, "labelB", "instanceB", "processB2");  // 18, 5
-  helper.insert(typeWithDictProductID, "label",  "instance",  "process");  // 19, 20
-  helper.insert(typeWithDictEventID, "label",  "instance",  "process");    // 21, 22
-  helper.insert(typeWithDictProductID, "labelA", "instanceA", "processA"); // 23, 24
-  helper.insert(typeWithDictSetInt, "labelC", "instanceC", "processC"); // 25, 26
-  helper.insert(typeWithDictVSimpleDerived, "labelC", "instanceC", "processC"); // 27, 28, 29, 30
+  helper.insert(typeIDVectorInt, "labelC", "instanceC", "processC"); // 0, 1, 2
+  helper.insert(typeIDVectorInt, "label",  "instance",  "process");  // 3, 4, 5
+  helper.insert(typeIDEventID, "labelB", "instanceB", "processB");   // 6, 7
+  helper.insert(typeIDEventID, "label",  "instanceB", "processB");   // 8, 9
+  helper.insert(typeIDEventID, "labelX", "instanceB", "processB");   // 10, 11
+  helper.insert(typeIDEventID, "labelB", "instance",  "processB");   // 12, 13
+  helper.insert(typeIDEventID, "labelB", "instanceX", "processB");   // 14, 15
+  helper.insert(typeIDEventID, "labelB", "instanceB", "processB1");  // 16, 5
+  helper.insert(typeIDEventID, "labelB", "instanceB", "processB3");  // 17, 5
+  helper.insert(typeIDEventID, "labelB", "instanceB", "processB2");  // 18, 5
+  helper.insert(typeIDProductID, "label",  "instance",  "process");  // 19, 20
+  helper.insert(typeIDEventID, "label",  "instance",  "process");    // 21, 22
+  helper.insert(typeIDProductID, "labelA", "instanceA", "processA"); // 23, 24
+  helper.insert(typeIDSetInt, "labelC", "instanceC", "processC"); // 25, 26
+  helper.insert(typeIDVSimpleDerived, "labelC", "instanceC", "processC"); // 27, 28, 29, 30
   
   helper.setFrozen();
   edm::TypeID typeID_vint(typeid(std::vector<int>));

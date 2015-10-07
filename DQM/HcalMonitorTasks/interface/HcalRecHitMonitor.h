@@ -3,6 +3,7 @@
 
 #include "DQM/HcalMonitorTasks/interface/HcalBaseDQMonitor.h"
 #include "DataFormats/HcalRecHit/interface/HcalRecHitCollections.h"
+#include "Geometry/CaloTopology/interface/HcalTopology.h"
 
 #define RECHITMON_TIME_MIN -250
 #define RECHITMON_TIME_MAX 250
@@ -19,13 +20,12 @@ class HcalRecHitMonitor: public HcalBaseDQMonitor {
 
   ~HcalRecHitMonitor();
 
-  void setup();
-  void beginRun(const edm::Run& run, const edm::EventSetup& c);
+  void setup(DQMStore::IBooker &);
+  void bookHistograms(DQMStore::IBooker &ib, const edm::Run& run, const edm::EventSetup& c);
   void endRun(const edm::Run& run, const edm::EventSetup& c);
   void endLuminosityBlock(const edm::LuminosityBlock& lumiSeg,
 			  const edm::EventSetup& c);
   void endJob();
-  void cleanup();
   void reset();
   void zeroCounters();
  
@@ -35,15 +35,16 @@ class HcalRecHitMonitor: public HcalBaseDQMonitor {
                     const HORecHitCollection& hoHits,
                     const HFRecHitCollection& hfHits,
 		    int BCN,
-		    const edm::Event& iEvent
-		    );
+		    const edm::Event& iEvent,
+		    const HcalTopology& topology);
 
   void processEvent_rechit( const HBHERecHitCollection& hbheHits,
 			    const HORecHitCollection& hoHits,
 			    const HFRecHitCollection& hfHits,
 			    bool passedHcalHLT,
 			    bool passedMinBiasHLT,
-			    int BCN);
+			    int BCN,
+			    const HcalTopology& topology);
  private:
   
   void fill_Nevents();

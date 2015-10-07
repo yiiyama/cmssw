@@ -111,7 +111,8 @@ namespace edm {
     virtual bool isComplete_() const override {return complete_;}
 
     virtual bool unscheduledFill(std::string const&,
-                                 ModuleCallingContext const* mcc) const override {return false;}
+                                 SharedResourcesAcquirer* sra,
+                                 ModuleCallingContext const*) const override {return false;}
 
     virtual unsigned int transitionIndex_() const override;
 

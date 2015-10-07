@@ -132,6 +132,7 @@ void DeDxEstimatorProducer::produce(edm::Event& iEvent, const edm::EventSetup& i
      if(useTrajectory){  //trajectory allows to take into account the local direction of the particle on the module sensor --> muc much better 'dx' measurement
         const edm::Ref<std::vector<Trajectory> > traj = cit->key; cit++;
         const vector<TrajectoryMeasurement> & measurements = traj->measurements();
+        dedxHits.reserve(measurements.size()/2);
         for(vector<TrajectoryMeasurement>::const_iterator it = measurements.begin(); it!=measurements.end(); it++){
            TrajectoryStateOnSurface trajState=it->updatedState();
            if( !trajState.isValid()) continue;
@@ -143,8 +144,8 @@ void DeDxEstimatorProducer::produce(edm::Event& iEvent, const edm::EventSetup& i
 
            processHit(recHit, trajState.localMomentum().mag(), cosine, dedxHits, NClusterSaturating);
         }
-
      }else{ //assume that the particles trajectory is a straight line originating from the center of the detector  (can be improved)
+        dedxHits.reserve(track->recHitsSize()/2);
         for(unsigned int h=0;h<track->recHitsSize();h++){
            const TrackingRecHit* recHit = &(*(track->recHit(h)));
            if(!recHit || !recHit->isValid())continue;
@@ -199,7 +200,7 @@ void DeDxEstimatorProducer::processHit(const TrackingRecHit* recHit, float track
           float pathLen     = detUnit.surface().bounds().thickness()/fabs(cosine);
           float chargeAbs   = DeDxTools::getCharge(&(clus.stripCluster()),NSaturating, detUnit, calibGains, m_off);
           float charge      = meVperADCStrip*chargeAbs/pathLen;
-          if(!shapetest || (shapetest && DeDxTools::shapeSelection(clus.stripCluster().amplitudes()))){
+          if(!shapetest || (shapetest && DeDxTools::shapeSelection(clus.stripCluster()))){
              dedxHits.push_back( DeDxHit( charge, trackMomentum, pathLen, thit.geographicalId()) );
              if(NSaturating>0)NClusterSaturating++;
           }
@@ -214,7 +215,7 @@ void DeDxEstimatorProducer::processHit(const TrackingRecHit* recHit, float track
           float pathLen     = detUnitM.surface().bounds().thickness()/fabs(cosine);
           float chargeAbs   = DeDxTools::getCharge(&(matchedHit->monoCluster()),NSaturating, detUnitM, calibGains, m_off);
           float charge      = meVperADCStrip*chargeAbs/pathLen;
-          if(!shapetest || (shapetest && DeDxTools::shapeSelection(matchedHit->monoCluster().amplitudes()))){
+          if(!shapetest || (shapetest && DeDxTools::shapeSelection(matchedHit->monoCluster()))){
              dedxHits.push_back( DeDxHit( charge, trackMomentum, pathLen, matchedHit->monoId()) );
              if(NSaturating>0)NClusterSaturating++;
           }
@@ -224,7 +225,7 @@ void DeDxEstimatorProducer::processHit(const TrackingRecHit* recHit, float track
           pathLen     = detUnitS.surface().bounds().thickness()/fabs(cosine);
           chargeAbs   = DeDxTools::getCharge(&(matchedHit->stereoCluster()),NSaturating, detUnitS, calibGains, m_off);
           charge      = meVperADCStrip*chargeAbs/pathLen;
-          if(!shapetest || (shapetest && DeDxTools::shapeSelection(matchedHit->stereoCluster().amplitudes()))){
+          if(!shapetest || (shapetest && DeDxTools::shapeSelection(matchedHit->stereoCluster()))){
              dedxHits.push_back( DeDxHit( charge, trackMomentum, pathLen, matchedHit->stereoId()) );
              if(NSaturating>0)NClusterSaturating++;
           }      

@@ -26,6 +26,8 @@ class EventMsgView;
 namespace edm {
   class BranchIDListHelper;
   class ParameterSetDescription;
+  class ThinnedAssociationsHelper;
+
   class StreamerInputSource : public RawInputSource {
   public:  
     explicit StreamerInputSource(ParameterSet const& pset,
@@ -40,7 +42,11 @@ namespace edm {
     void deserializeEvent(EventMsgView const& eventView);
 
     static
-    void mergeIntoRegistry(SendJobHeader const& header, ProductRegistry&, BranchIDListHelper&, bool subsequent);
+    void mergeIntoRegistry(SendJobHeader const& header,
+                           ProductRegistry&,
+                           BranchIDListHelper&,
+                           ThinnedAssociationsHelper&,
+                           bool subsequent);
 
     /**
      * Uncompresses the data in the specified input buffer into the
@@ -66,8 +72,13 @@ namespace edm {
       EventPrincipalHolder();
       virtual ~EventPrincipalHolder();
 
-      virtual WrapperBase const* getIt(edm::ProductID const& id) const override;
- 
+      virtual WrapperBase const* getIt(ProductID const& id) const override;
+      virtual WrapperBase const* getThinnedProduct(ProductID const&, unsigned int&) const override;
+      virtual void getThinnedProducts(ProductID const& pid,
+                                      std::vector<WrapperBase const*>& wrappers,
+                                      std::vector<unsigned int>& keys) const override;
+
+
       virtual unsigned int transitionIndex_() const override;
 
       void setEventPrincipal(EventPrincipal* ep);
@@ -87,7 +98,8 @@ namespace edm {
     std::vector<unsigned char> dest_;
     TBufferFile xbuf_;
     std::unique_ptr<SendEvent> sendEvent_;
-    EventPrincipalHolder eventPrincipalHolder_;
+    std::unique_ptr<EventPrincipalHolder> eventPrincipalHolder_;
+    std::vector<std::unique_ptr<EventPrincipalHolder>> streamToEventPrincipalHolders_;
     bool adjustEventToNewProductRegistry_;
 
     std::string processName_;

@@ -14,6 +14,7 @@ pfRecoTauDiscriminationByIsolation = cms.EDProducer("PFRecoTauDiscriminationByIs
     # Select which collections to use for isolation. You can select one or both
     ApplyDiscriminationByECALIsolation = cms.bool(True), # use PFGammas when isolating
     ApplyDiscriminationByTrackerIsolation = cms.bool(True), # use PFChargedHadr when isolating
+    ApplyDiscriminationByWeightedECALIsolation = cms.bool(False), #do not use pileup weighting of neutral deposits by default
 
     applyOccupancyCut = cms.bool(True), # apply a cut on number of isolation objects
     maximumOccupancy = cms.uint32(0), # no tracks > 1 GeV or gammas > 1.5 GeV allowed
@@ -25,13 +26,16 @@ pfRecoTauDiscriminationByIsolation = cms.EDProducer("PFRecoTauDiscriminationByIs
     relativeSumPtCut = cms.double(0.0),
     relativeSumPtOffset = cms.double(0.0),
 
-    qualityCuts = PFTauQualityCuts,# set the standard quality cuts
+    applyPhotonPtSumOutsideSignalConeCut = cms.bool(False),
+    maxAbsPhotonSumPt_outsideSignalCone = cms.double(1.e+9),
+    maxRelPhotonSumPt_outsideSignalCone = cms.double(0.10),
+
+    qualityCuts = PFTauQualityCuts, # set the standard quality cuts
 
     # Delta-Beta corrections to remove Pileup
     applyDeltaBetaCorrection = cms.bool(False),
     particleFlowSrc = cms.InputTag("particleFlow"),
     vertexSrc = PFTauQualityCuts.primaryVertexSrc,
-
     # This must correspond to the cone size of the algorithm which built the
     # tau. (or if customOuterCone option is used, the custom cone size)
     isoConeSizeForDeltaBeta = cms.double(0.5),
@@ -46,9 +50,37 @@ pfRecoTauDiscriminationByIsolation = cms.EDProducer("PFRecoTauDiscriminationByIs
     # Uncommenting the parameter below allows this threshold to be overridden.
     #deltaBetaPUTrackPtCutOverride = cms.double(1.5),
 
+    # Tau footprint correction
+    applyFootprintCorrection = cms.bool(False),
+    footprintCorrections = cms.VPSet(
+        cms.PSet(
+            selection = cms.string("decayMode() = 0"),
+            offset = cms.string("0.0")
+        ),
+        cms.PSet(
+            selection = cms.string("decayMode() = 1 || decayMode() = 2"),
+            offset = cms.string("0.0")
+        ),
+        cms.PSet(
+            selection = cms.string("decayMode() = 5"),
+            offset = cms.string("2.7")
+        ),
+        cms.PSet(
+            selection = cms.string("decayMode() = 6"),
+            offset = cms.string("0.0")
+        ),
+        cms.PSet(
+            selection = cms.string("decayMode() = 10"),
+            offset = cms.string("max(2.0, 0.22*pt() - 2.0)")
+        )        
+    ),                                                        
+
     # Rho corrections
     applyRhoCorrection = cms.bool(False),
     rhoProducer = cms.InputTag("fixedGridRhoFastjetAll"),
     rhoConeSize = cms.double(0.5),
-    rhoUEOffsetCorrection = cms.double(1.0)
+    rhoUEOffsetCorrection = cms.double(1.0),
+    UseAllPFCandsForWeights = cms.bool(False),
+    verbosity = cms.int32(0)
+                                                   
 )

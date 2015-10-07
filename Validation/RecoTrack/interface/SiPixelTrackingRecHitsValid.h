@@ -67,7 +67,7 @@
 class TTree;
 class TFile;
 
-class SiPixelTrackingRecHitsValid : public thread_unsafe::DQMEDAnalyzer
+class SiPixelTrackingRecHitsValid : public DQMEDAnalyzer
 {
  public:
   
@@ -85,7 +85,7 @@ class SiPixelTrackingRecHitsValid : public thread_unsafe::DQMEDAnalyzer
 
  private:
 
-  edm::ParameterSet conf_;
+  TrackerHitAssociator::Config trackerHitAssociatorConfig_;
   //TrackLocalAngle *anglefinder_;
   DQMStore* dbe_;
   bool runStandalone;
@@ -508,8 +508,8 @@ class SiPixelTrackingRecHitsValid : public thread_unsafe::DQMEDAnalyzer
   float simhitx; // true x position of hit 
   float simhity; // true y position of hit
 
-  int evt;
-  int run;
+  edm::EventNumber_t evt;
+  edm::RunNumber_t run;
 
   TFile * tfile_;
   TTree * t_;

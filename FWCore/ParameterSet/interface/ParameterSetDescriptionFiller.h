@@ -22,11 +22,27 @@ method of the templated argument.  This allows the ParameterSetDescriptionFiller
 //         Created:  Wed Aug  1 16:46:56 EDT 2007
 //
 
+#include <type_traits>
+#include <string>
+#include <boost/mpl/if.hpp>
 #include "FWCore/ParameterSet/interface/ParameterSetDescriptionFillerBase.h"
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
-#include "boost/mpl/if.hpp"
-#include <string>
+#include "FWCore/Framework/interface/EDAnalyzer.h"
+#include "FWCore/Framework/interface/EDProducer.h"
+#include "FWCore/Framework/interface/EDFilter.h"
+#include "FWCore/Framework/interface/OutputModule.h"
+#include "FWCore/Framework/interface/one/EDAnalyzer.h"
+#include "FWCore/Framework/interface/one/EDProducer.h"
+#include "FWCore/Framework/interface/one/EDFilter.h"
+#include "FWCore/Framework/interface/one/OutputModule.h"
+#include "FWCore/Framework/interface/stream/EDAnalyzer.h"
+#include "FWCore/Framework/interface/stream/EDProducer.h"
+#include "FWCore/Framework/interface/stream/EDFilter.h"
+#include "FWCore/Framework/interface/global/EDAnalyzer.h"
+#include "FWCore/Framework/interface/global/EDProducer.h"
+#include "FWCore/Framework/interface/global/EDFilter.h"
+#include "FWCore/Framework/interface/global/OutputModule.h"
 
 namespace edm {
   template< typename T>
@@ -42,6 +58,41 @@ namespace edm {
 
     virtual const std::string& baseType() const {
       return T::baseType();
+    }
+
+    virtual const std::string& extendedBaseType() const {
+      if (std::is_base_of<edm::EDAnalyzer, T>::value)
+        return kExtendedBaseForEDAnalyzer;
+      if (std::is_base_of<edm::EDProducer, T>::value)
+        return kExtendedBaseForEDProducer;
+      if (std::is_base_of<edm::EDFilter, T>::value)
+        return kExtendedBaseForEDFilter;
+      if (std::is_base_of<edm::OutputModule, T>::value)
+        return kExtendedBaseForOutputModule;
+      if (std::is_base_of<edm::one::EDAnalyzerBase, T>::value)
+        return kExtendedBaseForOneEDAnalyzer;
+      if (std::is_base_of<edm::one::EDProducerBase, T>::value)
+        return kExtendedBaseForOneEDProducer;
+      if (std::is_base_of<edm::one::EDFilterBase, T>::value)
+        return kExtendedBaseForOneEDFilter;
+      if (std::is_base_of<edm::one::OutputModuleBase, T>::value)
+        return kExtendedBaseForOneOutputModule;
+      if (std::is_base_of<edm::stream::EDAnalyzerBase, T>::value)
+        return kExtendedBaseForStreamEDAnalyzer;
+      if (std::is_base_of<edm::stream::EDProducerBase, T>::value)
+        return kExtendedBaseForStreamEDProducer;
+      if (std::is_base_of<edm::stream::EDFilterBase, T>::value)
+        return kExtendedBaseForStreamEDFilter;
+      if (std::is_base_of<edm::global::EDAnalyzerBase, T>::value)
+        return kExtendedBaseForGlobalEDAnalyzer;
+      if (std::is_base_of<edm::global::EDProducerBase, T>::value)
+        return kExtendedBaseForGlobalEDProducer;
+      if (std::is_base_of<edm::global::EDFilterBase, T>::value)
+        return kExtendedBaseForGlobalEDFilter;
+      if (std::is_base_of<edm::global::OutputModuleBase, T>::value)
+        return kExtendedBaseForGlobalOutputModule;
+
+      return kEmpty;
     }
 
   private:
@@ -138,6 +189,10 @@ namespace edm {
       return kBaseForService;
     }
 
+    virtual const std::string& extendedBaseType() const {
+      return kEmpty;
+    }
+
   private:
     void prevalidate(ConfigurationDescriptions & descriptions);
     DescriptionFillerForServices(const DescriptionFillerForServices&); // stop default
@@ -168,6 +223,10 @@ namespace edm {
       return kBaseForESSource;
     }
 
+    virtual const std::string& extendedBaseType() const {
+      return kEmpty;
+    }
+
   private:
     DescriptionFillerForESSources(const DescriptionFillerForESSources&); // stop default
     const DescriptionFillerForESSources& operator=(const DescriptionFillerForESSources&); // stop default
@@ -195,6 +254,10 @@ namespace edm {
 
     virtual const std::string& baseType() const {
       return kBaseForESProducer;
+    }
+
+    virtual const std::string& extendedBaseType() const {
+      return kEmpty;
     }
 
   private:

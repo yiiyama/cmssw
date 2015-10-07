@@ -59,6 +59,9 @@ FWRPZView::FWRPZView(TEveWindowSlot* iParent, FWViewType::EType id) :
    m_showPixelEndcap(this, "Show Pixel Endcap", false),
    m_showTrackerBarrel(this, "Show Tracker Barrel", false ),
    m_showTrackerEndcap(this, "Show Tracker Endcap", false),
+   m_showRpcEndcap(this, "Show RPC Endcap", false ),
+   m_showGEM(this, "Show GEM", false ),
+   m_showME0(this, "Show ME0", false ),
 
    m_shiftOrigin(this,"Shift origin to beam-spot", false),
    m_fishEyeDistortion(this,"Distortion",0., 0., 100.),
@@ -174,6 +177,9 @@ FWRPZView::setContext(const fireworks::Context& ctx)
    m_showPixelEndcap.changed_.connect(boost::bind(&FWRPZViewGeometry::showPixelEndcap,m_geometryList,_1));
    m_showTrackerBarrel.changed_.connect(boost::bind(&FWRPZViewGeometry::showTrackerBarrel,m_geometryList,_1));
    m_showTrackerEndcap.changed_.connect(boost::bind(&FWRPZViewGeometry::showTrackerEndcap,m_geometryList,_1));
+   m_showRpcEndcap.changed_.connect(boost::bind(&FWRPZViewGeometry::showRpcEndcap,m_geometryList,_1));
+   m_showGEM.changed_.connect(boost::bind(&FWRPZViewGeometry::showGEM,m_geometryList,_1));
+   m_showME0.changed_.connect(boost::bind(&FWRPZViewGeometry::showME0,m_geometryList,_1));
 
 }
 
@@ -202,13 +208,6 @@ FWRPZView::eventBegin()
          cam.SetCenterVec(b.x0(), b.y0(), b.z0());
       }
    }
-}
-
-void
-FWRPZView::eventEnd()
-{
-   FWEveView::eventEnd();
-   viewerGL()->RequestDraw();
 }
 
 void
@@ -403,9 +402,17 @@ FWRPZView::populateController(ViewerParameterGUI& gui) const
 
    ViewerParameterGUI& det =  gui.requestTab("Detector");;
    det.addParam(&m_showPixelBarrel);
-   if (typeId() == FWViewType::kRhoZ) det.addParam(&m_showPixelEndcap);
-   det.addParam(&m_showTrackerBarrel);
-   if (typeId() == FWViewType::kRhoZ) det.addParam(&m_showTrackerEndcap);
+
+   if (typeId() == FWViewType::kRhoZ)
+   {
+      det.addParam(&m_showTrackerBarrel);
+      det.addParam(&m_showPixelEndcap);
+      det.addParam(&m_showRpcEndcap);
+      bool showGEM = m_context->getGeom()->versionInfo().haveExtraDet("GEM");
+      if (showGEM) det.addParam(&m_showGEM);
+      bool showME0 = m_context->getGeom()->versionInfo().haveExtraDet("ME0");
+      if (showME0) det.addParam(&m_showME0);
+   }
 
 #ifdef TEVEPROJECTIONS_DISPLACE_ORIGIN_MODE
    gui.requestTab("Projection").addParam(&m_shiftOrigin);

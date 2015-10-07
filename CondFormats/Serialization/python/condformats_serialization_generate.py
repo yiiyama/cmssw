@@ -24,6 +24,7 @@ __email__ = 'mojedasa@cern.ch'
 import argparse
 import logging
 import os
+import re
 import subprocess
 
 import clang.cindex
@@ -45,9 +46,9 @@ serialize_method_begin_template = '''template <class Archive>
 void {klass}::serialize(Archive & ar, const unsigned int)
 {{'''
 
-serialize_method_base_object_template = '    ar & boost::serialization::make_nvp("{base_object_name}", boost::serialization::base_object<{base_object_name}>(*this));'
+serialize_method_base_object_template = '    ar & boost::serialization::make_nvp("{base_object_name_sanitised}", boost::serialization::base_object<{base_object_name}>(*this));'
 
-serialize_method_member_template = '''    ar & BOOST_SERIALIZATION_NVP({member_name});'''
+serialize_method_member_template = '''    ar & boost::serialization::make_nvp("{member_name_sanitised}", {member_name});'''
 
 serialize_method_end = '''}
 '''
@@ -214,6 +215,8 @@ def get_serializable_classes_members(node, all_template_types=None, namespace=''
                 # Template non-type parameters (e.g. <int N>)
                 elif member.kind == clang.cindex.CursorKind.TEMPLATE_NON_TYPE_PARAMETER:
                     type_string = get_type_string(member)
+		    if not type_string: 
+		       type_string = get_basic_type_string(member)
                     logging.info('    Found template non-type parameter: %s %s', type_string, member.spelling)
                     template_types.append((type_string, member.spelling))
 
@@ -384,6 +387,10 @@ def get_default_gcc_search_paths(gcc = 'g++', language = 'c++'):
 
     return paths
 
+def sanitise(var):
+    return re.sub('[^a-zA-Z0-9.,-:]', '-', var)
+
+
 class SerializationCodeGenerator(object):
 
     def __init__(self, scramFlags=None):
@@ -424,12 +431,13 @@ class SerializationCodeGenerator(object):
 	   cpp_flags = self.cleanFlags( scramFlags )
 	   cxx_flags = []
 
-        std_flags = get_default_gcc_search_paths()
+        # We are using libClang, thus we have to follow Clang include paths
+        std_flags = get_default_gcc_search_paths(gcc='clang++')
         log_flags('cpp_flags', cpp_flags)
         log_flags('cxx_flags', cxx_flags)
         log_flags('std_flags', std_flags)
 
-        flags = cpp_flags + cxx_flags + std_flags
+        flags = ['-xc++'] + cpp_flags + cxx_flags + std_flags
 
         headers_h = self._join_package_path('src', 'headers.h')
         logging.debug('headers_h = %s', headers_h)
@@ -440,28 +448,31 @@ class SerializationCodeGenerator(object):
 
         logging.debug('Parsing C++ classes in file %s ...', headers_h)
         index = clang.cindex.Index.create()
-        translation_unit = index.parse(None, [headers_h] + flags)
+        translation_unit = index.parse(headers_h, flags)
         if not translation_unit:
             raise Exception('Unable to load input.')
 
+        severity_names = ('Ignored', 'Note', 'Warning', 'Error', 'Fatal')
+        get_severity_name = lambda severity_num: severity_names[severity_num] if severity_num < len(severity_names) else 'Unknown'
+        max_severity_level = 0 # Ignored
         diagnostics = get_diagnostics(translation_unit)
         for diagnostic in diagnostics:
             logf = logging.error
 
             # Ignore some known warnings
             if diagnostic['spelling'].startswith('argument unused during compilation') \
-                or diagnostic['spelling'].startswith('unknown warning option') \
-                or diagnostic['spelling'] == "invalid argument '-std=c++11' not allowed with 'C/ObjC'" \
-                or diagnostic['spelling'] == "'stdarg.h' file not found" \
-                or diagnostic['spelling'] == "'stddef.h' file not found":
+                or diagnostic['spelling'].startswith('unknown warning option'):
                 logf = logging.debug
 
-            logf('Diagnostic: [%s] %s', diagnostic['severity'], diagnostic['spelling'])
+            logf('Diagnostic: [%s] %s', get_severity_name(diagnostic['severity']), diagnostic['spelling'])
             logf('   at line %s in %s', diagnostic['location'].line, diagnostic['location'].file)
 
+            max_severity_level = max(max_severity_level, diagnostic['severity'])
+
+        if max_severity_level >= 3: # Error
+            raise Exception('Please, resolve all errors before proceeding.')
 
         self.classes = get_serializable_classes_members(translation_unit.cursor, only_from_path=self._join_package_path())
-
 
     def _join_package_path(self, *path):
         return os.path.join(self.cmssw_base, self.split_path[0], self.split_path[1], self.split_path[2], *path)
@@ -498,10 +509,12 @@ class SerializationCodeGenerator(object):
             source += serialize_method_begin_template.format(klass=klass) + '\n'
 
             for base_object_name in base_objects:
-                source += serialize_method_base_object_template.format(base_object_name=base_object_name) + '\n'
+                base_object_name_sanitised = sanitise(base_object_name)
+                source += serialize_method_base_object_template.format(base_object_name=base_object_name, base_object_name_sanitised=base_object_name_sanitised) + '\n'
 
             for member_name in members:
-                source += serialize_method_member_template.format(member_name=member_name) + '\n'
+                member_name_sanitised = sanitise(member_name)
+                source += serialize_method_member_template.format(member_name=member_name, member_name_sanitised=member_name_sanitised) + '\n'
 
             source += serialize_method_end
 

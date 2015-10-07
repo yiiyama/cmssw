@@ -5,7 +5,7 @@
 
 #include "DataFormats/Common/interface/Handle.h"
 
-#include "FWCore/Framework/interface/EDProducer.h"
+#include "FWCore/Framework/interface/stream/EDProducer.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 
@@ -21,10 +21,11 @@
 #include "SimDataFormats/TrackingHit/interface/PSimHit.h"
 #include "SimDataFormats/PileupSummaryInfo/interface/PileupSummaryInfo.h"
 #include "SimDataFormats/PileupSummaryInfo/interface/PileupMixingContent.h"
+#include "SimDataFormats/PileupSummaryInfo/interface/PileupVertexContent.h"
 
 #include "SimGeneral/TrackingAnalysis/interface/EncodedTruthId.h"
 
-class PileupInformation : public edm::EDProducer
+class PileupInformation : public edm::stream::EDProducer<>
 {
 
 public:
@@ -33,7 +34,7 @@ public:
 
 private:
 
-    void produce( edm::Event &, const edm::EventSetup & );
+    void produce( edm::Event &, const edm::EventSetup & ) override;
 
     edm::ParameterSet conf_;
 
@@ -53,10 +54,15 @@ private:
     double                   volumeZ_;
     double                   pTcut_1_;
     double                   pTcut_2_;
+    bool isPreMixed_;
+
 
     edm::EDGetTokenT<TrackingParticleCollection>     trackingTruthT_;
     edm::EDGetTokenT<TrackingVertexCollection>     trackingTruthV_;
     edm::EDGetTokenT<PileupMixingContent>            PileupInfoLabel_;
+    edm::EDGetTokenT<int> bunchSpacingToken_;
+    edm::EDGetTokenT<std::vector<PileupSummaryInfo> > pileupSummaryToken_;
+    edm::EDGetTokenT<PileupVertexContent>            PileupVtxLabel_;
 
     bool LookAtTrackingTruth_ ;
 

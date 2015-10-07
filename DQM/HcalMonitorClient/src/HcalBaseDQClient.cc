@@ -5,7 +5,7 @@
 #include <iostream>
 #include <fstream>
 #include "CondFormats/HcalObjects/interface/HcalLogicalMap.h"
-#include "Geometry/Records/interface/IdealGeometryRecord.h"
+#include "Geometry/Records/interface/HcalRecNumberingRecord.h"
 #include "CalibCalorimetry/HcalAlgos/interface/HcalLogicalMapGenerator.h"
 #include "FWCore/Framework/interface/ESHandle.h"
 
@@ -39,16 +39,8 @@ HcalBaseDQClient::HcalBaseDQClient(std::string s, const edm::ParameterSet& ps)
 }
 
 HcalBaseDQClient::~HcalBaseDQClient()
-{}
-
-void HcalBaseDQClient::beginJob()
 {
-  dqmStore_ = edm::Service<DQMStore>().operator->();
-  if (debug_>0) 
-    {
-      std::cout <<"<HcalBaseDQClient::beginJob()>  Displaying dqmStore directory structure:"<<std::endl;
-      dqmStore_->showDirStructure();
-    }
+  if ( logicalMap_ ) delete logicalMap_;
 }
 
 void HcalBaseDQClient::setStatusMap(std::map<HcalDetId, unsigned int>& map)
@@ -70,18 +62,13 @@ void HcalBaseDQClient::setStatusMap(std::map<HcalDetId, unsigned int>& map)
   } // void HcalBaseDQClient::getStatusMap
 
 
-bool HcalBaseDQClient::validHtmlOutput()
+bool HcalBaseDQClient::validHtmlOutput(DQMStore::IBooker &ib, DQMStore::IGetter &ig)
 {
   return validHtmlOutput_;
 }
 
-void HcalBaseDQClient::htmlOutput(std::string htmlDir)
+void HcalBaseDQClient::htmlOutput(DQMStore::IBooker &ib, DQMStore::IGetter &ig, std::string htmlDir)
 {
-  if (dqmStore_==0) 
-    {
-      if (debug_>0) std::cout <<"<HcalBaseDQClient::htmlOutput> dqmStore object does not exist!"<<std::endl;
-      return;
-    }
 
   if (debug_>2) std::cout <<"\t<HcalBaseDQClient::htmlOutput>  Preparing html for task: "<<name_<<std::endl;
   int pcol_error[105];
@@ -157,7 +144,7 @@ void HcalBaseDQClient::htmlOutput(std::string htmlDir)
   htmlFile << "cellpadding=\"10\"> " << std::endl;
   
 
-  std::vector<MonitorElement*> hists = dqmStore_->getAllContents(subdir_);
+  std::vector<MonitorElement*> hists = ig.getAllContents(subdir_);
   gStyle->SetPalette(1);
   
   int counter=0;
@@ -209,12 +196,13 @@ void HcalBaseDQClient::htmlOutput(std::string htmlDir)
   htmlFile << "</body> " << std::endl;
   htmlFile << "</html> " << std::endl;
   htmlFile.close();
+  
   return;
 }
 void HcalBaseDQClient::getLogicalMap(const edm::EventSetup& c) {
   if (needLogicalMap_ && logicalMap_==0) {
     edm::ESHandle<HcalTopology> pT;
-    c.get<IdealGeometryRecord>().get(pT);   
+    c.get<HcalRecNumberingRecord>().get(pT);   
     HcalLogicalMapGenerator gen;
     logicalMap_=new HcalLogicalMap(gen.createMap(&(*pT)));
   }

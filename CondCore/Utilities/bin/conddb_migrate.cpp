@@ -16,7 +16,8 @@
 #include "CondCore/Utilities/interface/CondDBTools.h"
 #include <iostream>
 
-#include "Cintex/Cintex.h"
+// for the xml dump
+#include "TFile.h"
 #include <sstream>
 
 namespace cond {
@@ -35,10 +36,7 @@ cond::MigrateUtilities::MigrateUtilities():Utilities("conddb_migrate"){
   addConnectOption("destConnect","d","destionation connection string(required)");
   addAuthenticationOptions();
   addOption<std::string>("tag","t","migrate only the tag (optional)");
-  addOption<bool>("replace","r","replace the tag already migrated (optional)");
-  addOption<bool>("fast","f","fast run without validation (optional)");
-  addOption<std::string>("log","l","log connection string (required");
-  ROOT::Cintex::Cintex::Enable();
+  addOption<std::string>("newTag","n","name for the destination tag (optional)");
 }
 
 cond::MigrateUtilities::~MigrateUtilities(){
@@ -47,12 +45,21 @@ cond::MigrateUtilities::~MigrateUtilities(){
 int cond::MigrateUtilities::execute(){
 
   bool debug = hasDebug();
+  int filterPosition = -1;
   std::string tag("");
   if( hasOptionValue("tag")) {
     tag = getOptionValue<std::string>("tag");
     if(debug){
       std::cout << "tag " << tag << std::endl;
     }  
+    if( tag[0] == '*' ){ 
+      tag = tag.substr(1);
+      filterPosition = 0;
+    }
+    if( tag[tag.size()-1] == '*' ){
+      tag = tag.substr(0,tag.size()-1);
+      filterPosition = 1;
+    }
   }
   bool replace = hasOptionValue("replace");
   bool validate = !hasOptionValue("fast");
@@ -68,15 +75,27 @@ int cond::MigrateUtilities::execute(){
   sourcedb.transaction().start( true );
   cond::MetaData  metadata(sourcedb);
   std::vector<std::string> tagToProcess;
-  if( !tag.empty() ){
+  if( !tag.empty() && filterPosition == -1 ){
     tagToProcess.push_back( tag );
   } else {
     metadata.listAllTags( tagToProcess );
+    if( filterPosition != -1 ) {
+      std::vector<std::string> filteredList;
+      for( const auto& t: tagToProcess ) {
+	size_t ptr = t.find( tag );
+	if( ptr != std::string::npos && ptr < filterPosition ) filteredList.push_back( t );
+      }
+      tagToProcess = filteredList;
+    }
   }
 
   cond::DbSession logdb = openDbSession("log", cond::Auth::COND_READER_ROLE, true ); 
 
   persistency::ConnectionPool connPool;
+  if( hasDebug() ) {
+    connPool.setMessageVerbosity( coral::Debug );
+    connPool.configure();
+  }
   persistency::Session sourceSession = connPool.createSession( sourceConnect );
 
   std::cout <<"# Opening session on destination database..."<<std::endl;

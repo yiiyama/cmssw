@@ -55,6 +55,8 @@
 #include "DataFormats/HLTReco/interface/TriggerEvent.h"
 #include "DataFormats/HLTReco/interface/TriggerObject.h"
 
+#include "DQMServices/Core/interface/DQMEDAnalyzer.h"
+
 #include "TRegexp.h"
 #include "TString.h"
 
@@ -63,10 +65,6 @@
 #include <utility>
 #include <vector>
 
-using namespace reco;
-using namespace trigger;
-using namespace edm;
-using namespace std;
 
 //
 // helper class to manage GMT-Muon pariring
@@ -121,7 +119,7 @@ private :
 // DQM class declaration
 //
 
-class L1TEfficiencyMuons_Offline : public edm::EDAnalyzer {
+class L1TEfficiencyMuons_Offline : public DQMEDAnalyzer {
   
 public:
   
@@ -130,26 +128,18 @@ public:
   
 protected:
   
-  // Event
-  void analyze (const edm::Event& e, const edm::EventSetup& c); 
-  
-  // Job
-  void beginJob();  
-  void endJob  ();
-
-  // Run
-  void beginRun(const edm::Run& run, const edm::EventSetup& iSetup);
-  void endRun  (const edm::Run& run, const edm::EventSetup& iSetup);
-  
    // Luminosity Block
   virtual void beginLuminosityBlock(edm::LuminosityBlock const& lumiBlock, edm::EventSetup const& c);
-  virtual void endLuminosityBlock  (edm::LuminosityBlock const& lumiBlock, edm::EventSetup const& c);
+  virtual void dqmEndLuminosityBlock  (edm::LuminosityBlock const& lumiBlock, edm::EventSetup const& c);
+  virtual void dqmBeginRun(const edm::Run& run, const edm::EventSetup& iSetup);
+  virtual void bookControlHistos(DQMStore::IBooker &);
+  virtual void bookEfficiencyHistos(DQMStore::IBooker &ibooker, int ptCut);
+  virtual void bookHistograms(DQMStore::IBooker &ibooker, const edm::Run& run, const edm::EventSetup& iSetup) override;
+  //virtual void analyze (const edm::Event& e, const edm::EventSetup& c);
 
 private:
 
-  // Booking
-  void bookControlHistos();
-  void bookEfficiencyHistos(int ptCut);
+  void analyze (const edm::Event& e, const edm::EventSetup& c);
 
   // Helper Functions
   const reco::Vertex getPrimaryVertex(edm::Handle<reco::VertexCollection> & vertex,edm::Handle<reco::BeamSpot> & beamSpot);
@@ -164,7 +154,6 @@ private:
 private:
   
   bool  m_verbose;
-  DQMStore* dbe;  // The DQM Service Handle
 
   HLTConfigProvider m_hltConfig;
 
@@ -187,8 +176,8 @@ private:
   edm::EDGetTokenT<reco::MuonCollection> m_MuonInputTag;
   edm::EDGetTokenT<L1MuGMTReadoutCollection> m_GmtInputTag;
 
-  edm::EDGetTokenT<VertexCollection> m_VtxInputTag;
-  edm::EDGetTokenT<BeamSpot> m_BsInputTag;
+  edm::EDGetTokenT<reco::VertexCollection> m_VtxInputTag;
+  edm::EDGetTokenT<reco::BeamSpot> m_BsInputTag;
 
   edm::EDGetTokenT<trigger::TriggerEvent> m_trigInputTag;
   std::string m_trigProcess;

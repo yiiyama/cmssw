@@ -168,7 +168,7 @@ const bool l1t::CaloCondition::evaluateCondition(const int bxEval) const {
 
     // number of trigger objects in the condition
     int nObjInCond = m_gtCaloTemplate->nrObjects();
-    //LogTrace("L1GlobalTrigger") << "  nObjInCond: " << nObjInCond
+    //LogTrace("l1t|Global") << "  nObjInCond: " << nObjInCond
     //    << std::endl;
 
     // the candidates
@@ -208,7 +208,7 @@ const bool l1t::CaloCondition::evaluateCondition(const int bxEval) const {
 
 
     int numberObjects = candVec->size(useBx);
-    //LogTrace("L1GlobalTrigger") << "  numberObjects: " << numberObjects
+    //LogTrace("l1t|Global") << "  numberObjects: " << numberObjects
     //    << std::endl;
     if (numberObjects < nObjInCond) {
         return false;
@@ -290,7 +290,7 @@ const bool l1t::CaloCondition::evaluateCondition(const int bxEval) const {
 	      if (nObjInCond != ObjInWscComb) {
 
                 if (m_verbosity) {
-		  edm::LogError("L1GlobalTrigger")
+		  edm::LogError("l1t|Global")
 		    << "\n  Error: "
 		    << "number of particles in condition with spatial correlation = "
 		    << nObjInCond << "\n  it must be = " << ObjInWscComb
@@ -304,7 +304,7 @@ const bool l1t::CaloCondition::evaluateCondition(const int bxEval) const {
                 *(m_gtCaloTemplate->correlationParameter());
 
 	      // check delta eta
-	      if( !checkRangeDeltaEta( (candVec->at(useBx,i))->hwEta(), (candVec->at(useBx,j))->hwEta(), corrPar.deltaEtaRangeLower, corrPar.deltaEtaRangeUpper) ){
+	      if( !checkRangeDeltaEta( (candVec->at(useBx,i))->hwEta(), (candVec->at(useBx,j))->hwEta(), corrPar.deltaEtaRangeLower, corrPar.deltaEtaRangeUpper, 7) ){
 		LogDebug("l1t|Global") << "\t\t l1t::Candidate failed checkRangeDeltaEta" << std::endl;
 		continue;
 	      }
@@ -462,7 +462,7 @@ const bool l1t::CaloCondition::evaluateCondition(const int bxEval) const {
     } // end if condition has 4 objects
 
 
-    LogTrace("L1GlobalTrigger")
+    LogTrace("l1t|Global")
        << "\n  CaloCondition: total number of permutations found:          " << totalLoops
        << "\n  CaloCondition: number of permutations passing requirements: " << passLoops
        << "\n" << std::endl;
@@ -529,6 +529,7 @@ const bool l1t::CaloCondition::checkObjectParameter(const int iCondition, const 
       << "\n\t etThreshold = " << objPar.etThreshold
       << "\n\t etaRange    = " << objPar.etaRange
       << "\n\t phiRange    = " << objPar.phiRange
+      << "\n\t isolationLUT= " << objPar.isolationLUT
       << std::endl;
 
     LogDebug("l1t|Global")
@@ -546,7 +547,7 @@ const bool l1t::CaloCondition::checkObjectParameter(const int iCondition, const 
     }
 
     // check eta
-    if( !checkRangeEta(cand.hwEta(), objPar.etaWindowLower, objPar.etaWindowUpper, objPar.etaWindowVetoLower, objPar.etaWindowVetoLower) ){
+    if( !checkRangeEta(cand.hwEta(), objPar.etaWindowLower, objPar.etaWindowUpper, objPar.etaWindowVetoLower, objPar.etaWindowVetoLower, 7) ){
       LogDebug("l1t|Global") << "\t\t l1t::Candidate failed checkRange(eta)" << std::endl;
       return false;
     }
@@ -561,12 +562,23 @@ const bool l1t::CaloCondition::checkObjectParameter(const int iCondition, const 
       return false;
     }
 
+    // check isolation ( bit check ) with isolation LUT
+    // sanity check on candidate isolation
+    if( cand.hwIso()>4 ){
+      LogDebug("l1t|Global") << "\t\t l1t::Candidate has out of range hwIso = " << cand.hwIso() << std::endl;
+      return false;
+    }
+    bool passIsoLUT = ( (objPar.isolationLUT >> cand.hwIso()) & 1 );
+    if( !passIsoLUT ){
+      LogDebug("l1t|Global") << "\t\t l1t::Candidate failed isolation requirement" << std::endl;
+      return false;
+    }
 //     if (!checkBit(objPar.phiRange, cand.hwPhi())) {
 //         return false;
 //     }
 
     // particle matches if we get here
-    //LogTrace("L1GlobalTrigger")
+    //LogTrace("l1t|Global")
     //    << "  checkObjectParameter: calorimeter object OK, passes all requirements\n"
     //    << std::endl;
 

@@ -60,28 +60,40 @@ class MillePedeAlignmentAlgorithm : public AlignmentAlgorithmBase
   /// Destructor
   virtual ~MillePedeAlignmentAlgorithm();
 
-  /// Call at beginning of job
+  /// Called at beginning of job
   virtual void initialize(const edm::EventSetup &setup,
 			  AlignableTracker *tracker, AlignableMuon *muon, AlignableExtras *extras,
 			  AlignmentParameterStore *store);
 
-  /// pass integrated calibrations to Millepede (they are not owned by Millepede!)
+  /// Returns whether MP supports calibrations
+  virtual bool supportsCalibrations() override;
+  /// Pass integrated calibrations to Millepede (they are not owned by Millepede!)
   virtual bool addCalibrations(const std::vector<IntegratedCalibrationBase*> &iCals);
 
-  /// Call at end of job
+  /// Called at end of job
   virtual void terminate(const edm::EventSetup& iSetup);
+  /// Called at end of job
+  virtual void terminate();
 
+  /// Returns whether MP should process events in the current configuration
+  virtual bool processesEvents() override;
   /// Run the algorithm on trajectories and tracks
   virtual void run(const edm::EventSetup &setup, const EventInfo &eventInfo);
 
+  // TODO: This method does NOT match endRun() in base class! Nobody is
+  //       calling this?
   /// Run on run products, e.g. TkLAS
-  virtual void endRun(const EventInfo &eventInfo, const EndRunInfo &runInfo,
-		      const edm::EventSetup &setup);
+  virtual void endRun(const EventInfo&, const EndRunInfo&,
+                      const edm::EventSetup&); //override;
+
+  // This one will be called since it matches the interface of the base class
+  virtual void endRun(const EndRunInfo &runInfo, const edm::EventSetup &setup);
+
 
 /*   virtual void beginLuminosityBlock(const edm::EventSetup &setup) {} */
 /*   virtual void endLuminosityBlock(const edm::EventSetup &setup) {} */
 
-  /// called in order to pass parameters to alignables for a specific run
+  /// Called in order to pass parameters to alignables for a specific run
   /// range in case the algorithm supports run range dependent alignment.
   virtual bool setParametersForRunRange(const RunRange &runrange);
 
@@ -99,6 +111,12 @@ class MillePedeAlignmentAlgorithm : public AlignmentAlgorithmBase
   int addMeasurementData(const edm::EventSetup &setup, const EventInfo &eventInfo, 
 			 const ReferenceTrajectoryBase::ReferenceTrajectoryPtr &refTrajPtr,
 			 unsigned int iHit, AlignmentParameters *&params);
+
+  /// Add global data (labels, derivatives) to GBL trajectory
+  /// Returns -1 if any problem (for params cf. globalDerivativesHierarchy)
+  int addGlobalData(const edm::EventSetup &setup, const EventInfo &eventInfo,
+                    const ReferenceTrajectoryBase::ReferenceTrajectoryPtr &refTrajPtr,
+                    unsigned int iHit, gbl::GblPoint &gblPoint);
 
   /// Increase hit counting of MillePedeVariables behind each parVec[i]
   /// (and also for parameters higher in hierarchy),
@@ -130,13 +148,22 @@ class MillePedeAlignmentAlgorithm : public AlignmentAlgorithmBase
 				  std::vector<int> &globalLabels,
 				  AlignmentParameters *&lowestParams) const;
 
+  /// recursively adding derivatives (double) and labels, false if problems
+  bool globalDerivativesHierarchy(const EventInfo &eventInfo,
+                                  const TrajectoryStateOnSurface &tsos,
+                                  Alignable *ali, const AlignableDetOrUnitPtr &alidet,
+                                  std::vector<double> &globalDerivativesX,
+                                  std::vector<double> &globalDerivativesY,
+                                  std::vector<int> &globalLabels,
+                                  AlignmentParameters *&lowestParams) const;
+
   /// adding derivatives from integrated calibrations
   void globalDerivativesCalibration(const TransientTrackingRecHit::ConstRecHitPointer &recHit,
-				    const TrajectoryStateOnSurface &tsos,
-				    const edm::EventSetup &setup, const EventInfo &eventInfo,
-				    std::vector<float> &globalDerivativesX,
-				    std::vector<float> &globalDerivativesY,
-				    std::vector<int> &globalLabels) const;
+                                    const TrajectoryStateOnSurface &tsos,
+                                    const edm::EventSetup &setup, const EventInfo &eventInfo,
+                                    std::vector<float> &globalDerivativesX,
+                                    std::vector<float> &globalDerivativesY,
+                                    std::vector<int> &globalLabels) const;
 
   /// calls callMille1D or callMille2D
   int callMille(const ReferenceTrajectoryBase::ReferenceTrajectoryPtr &refTrajPtr,
@@ -176,6 +203,10 @@ class MillePedeAlignmentAlgorithm : public AlignmentAlgorithmBase
   unsigned int doIO(int loop) const;
   /// add MillePedeVariables for each AlignmentParameters (exception if no parameters...)
   void buildUserVariables(const std::vector<Alignable*> &alignables) const;
+
+  /// Generates list of files to read, given the list and dir from the configuration.
+  /// This will automatically expand formatting directives, if they appear.
+  std::vector<std::string> getExistingFormattedFiles(const std::vector<std::string> plainFiles, std::string theDir);
 
   void addLaserData(const EventInfo &eventInfo, 
 		    const TkFittedLasBeamCollection &tkLasBeams,
@@ -219,6 +250,9 @@ class MillePedeAlignmentAlgorithm : public AlignmentAlgorithmBase
   std::vector<float>        theFloatBufferY;
   std::vector<int>          theIntBuffer;
   bool                      theDoSurveyPixelBarrel;
+  // CHK for GBL
+  gbl::MilleBinary              *theBinary;
+  bool                      theGblDoubleBinary;
 };
 
 #endif

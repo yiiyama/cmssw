@@ -30,6 +30,9 @@
 
 class QCriterion;
 
+// tag for a special constructor, see below
+struct MonitorElementNoCloneTag {};
+
 /** The base class for all MonitorElements (ME) */
 class MonitorElement
 {
@@ -86,8 +89,11 @@ public:
                  uint32_t run = 0,
                  uint32_t streamId = 0,
                  uint32_t moduleId = 0);
+  MonitorElement(const MonitorElement &, MonitorElementNoCloneTag);
   MonitorElement(const MonitorElement &);
-  MonitorElement &operator=(const MonitorElement &);
+  MonitorElement(MonitorElement &&);
+  MonitorElement &operator=(const MonitorElement &) = delete;
+  MonitorElement &operator=(MonitorElement &&) = delete;
   ~MonitorElement(void);
 
   /// Compare monitor elements, for ordering in sets.
@@ -286,6 +292,15 @@ private:
   bool isAccumulateEnabled(void) const
     { return data_.flags & DQMNet::DQM_PROP_ACCUMULATE; }
 
+  /// true if ME is marked for deletion
+  bool markedToDelete(void) const
+    { return data_.flags & DQMNet::DQM_PROP_MARKTODELETE; }
+
+  /// Mark the object for deletion.
+  /// NB: make sure that the following method is not called simultaneously for the same ME
+  void markToDelete(void)
+    { data_.flags |= DQMNet::DQM_PROP_MARKTODELETE; }
+
 private:
   /// reset "was updated" flag
   void resetUpdate(void)
@@ -303,7 +318,9 @@ private:
   TAxis *getAxis(const char *func, int axis) const;
 
   // ------------ Operations for MEs that are normally never reset ---------
+public:
   void softReset(void);
+private:
   void disableSoftReset(void);
   void addProfiles(TProfile *h1, TProfile *h2, TProfile *sum, float c1, float c2);
   void addProfiles(TProfile2D *h1, TProfile2D *h2, TProfile2D *sum, float c1, float c2);

@@ -10,27 +10,27 @@
  * to these particles in the event. The following hadrons are selected:
  *
  * - b hadrons that do not have other b hadrons as daughters
- * 
+ *
  * - c hadrons that do not have other c hadrons as daughters
- * 
+ *
  * Older Fortran Monte Carlo generators (Pythia6 and Herwig6) follow the HEPEVT [1] particle status code convention while
  * newer C++ Monte Carlo generators (Pythia8, Herwig++, and Sherpa) follow the HepMC [2] particle status code convention.
  * However, both conventions give considerable freedom in defining the status codes of intermediate particle states. Hence,
  * the parton selection is generator-dependent and is described in each of the parton selectors separately.
- * 
+ *
  * Using the provenance information of the GenEventInfoProduct, the producer attempts to automatically determine what generator
  * was used to hadronize events and based on that information decides what parton selection mode to use. It is also possible
  * to enforce any of the supported parton selection modes.
  *
  * The selected hadrons and partons are finally used by the JetFlavourClustering producer to determine the jet flavour.
- * 
+ *
  * The following leptons are selected:
- * 
+ *
  * - status==1 electrons and muons
- * 
+ *
  * - status==2 taus
- * 
- * 
+ *
+ *
  * [1] http://cepa.fnal.gov/psm/stdhep/
  * [2] http://lcgapp.cern.ch/project/simu/HepMC/
  */
@@ -46,7 +46,7 @@
 
 // user include files
 #include "FWCore/Framework/interface/Frameworkfwd.h"
-#include "FWCore/Framework/interface/EDProducer.h"
+#include "FWCore/Framework/interface/stream/EDProducer.h"
 
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
@@ -76,7 +76,7 @@ typedef boost::shared_ptr<BasePartonSelector> PartonSelectorPtr;
 // class declaration
 //
 
-class HadronAndPartonSelector : public edm::EDProducer {
+class HadronAndPartonSelector : public edm::stream::EDProducer<> {
    public:
       explicit HadronAndPartonSelector(const edm::ParameterSet&);
       ~HadronAndPartonSelector();
@@ -84,15 +84,8 @@ class HadronAndPartonSelector : public edm::EDProducer {
       static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
 
    private:
-      virtual void beginJob() ;
       virtual void produce(edm::Event&, const edm::EventSetup&);
-      virtual void endJob() ;
-
-      virtual void beginRun(edm::Run&, edm::EventSetup const&);
-      virtual void endRun(edm::Run&, edm::EventSetup const&);
-      virtual void beginLuminosityBlock(edm::LuminosityBlock&, edm::EventSetup const&);
-      virtual void endLuminosityBlock(edm::LuminosityBlock&, edm::EventSetup const&);
-
+  
       // ----------member data ---------------------------
       const edm::EDGetTokenT<GenEventInfoProduct>         srcToken_;        // To get handronizer module type
       const edm::EDGetTokenT<reco::GenParticleCollection> particlesToken_;  // Input GenParticle collection
@@ -118,7 +111,8 @@ HadronAndPartonSelector::HadronAndPartonSelector(const edm::ParameterSet& iConfi
    //register your products
    produces<reco::GenParticleRefVector>( "bHadrons" );
    produces<reco::GenParticleRefVector>( "cHadrons" );
-   produces<reco::GenParticleRefVector>( "partons" );
+   produces<reco::GenParticleRefVector>( "algorithmicPartons" );
+   produces<reco::GenParticleRefVector>( "physicsPartons" );
    produces<reco::GenParticleRefVector>( "leptons" );
 }
 
@@ -147,9 +141,10 @@ HadronAndPartonSelector::produce(edm::Event& iEvent, const edm::EventSetup& iSet
      iEvent.getByToken(srcToken_, genEvtInfoProduct);
 
      std::string moduleName = "";
-     const edm::Provenance& prov = iEvent.getProvenance(genEvtInfoProduct.id());
-     if( genEvtInfoProduct.isValid() )
+     if( genEvtInfoProduct.isValid() ) {
+       const edm::Provenance& prov = iEvent.getProvenance(genEvtInfoProduct.id());
        moduleName = edm::moduleName(prov);
+     }
 
      if( moduleName.find("Pythia6")!=std::string::npos )
        partonMode_="Pythia6";
@@ -205,6 +200,7 @@ HadronAndPartonSelector::produce(edm::Event& iEvent, const edm::EventSetup& iSet
    std::auto_ptr<reco::GenParticleRefVector> bHadrons ( new reco::GenParticleRefVector );
    std::auto_ptr<reco::GenParticleRefVector> cHadrons ( new reco::GenParticleRefVector );
    std::auto_ptr<reco::GenParticleRefVector> partons  ( new reco::GenParticleRefVector );
+   std::auto_ptr<reco::GenParticleRefVector> physicsPartons  ( new reco::GenParticleRefVector );
    std::auto_ptr<reco::GenParticleRefVector> leptons  ( new reco::GenParticleRefVector );
 
    // loop over particles and select b and c hadrons and leptons
@@ -248,48 +244,21 @@ HadronAndPartonSelector::produce(edm::Event& iEvent, const edm::EventSetup& iSet
    }
 
    // select partons
-   if ( partonMode_!="Undefined" )
+   if ( partonMode_!="Undefined" ) {
      partonSelector_->run(particles,partons);
+     for(reco::GenParticleCollection::const_iterator it = particles->begin(); it != particles->end(); ++it)
+     {
+       if( !(it->status()==3 || (( partonMode_=="Pythia8" ) && (it->status()==23)))) continue;
+       if( !CandMCTagUtils::isParton( *it ) ) continue;  // skip particle if not a parton
+       physicsPartons->push_back( reco::GenParticleRef( particles, it - particles->begin() ) );
+     }
+   }
 
    iEvent.put( bHadrons, "bHadrons" );
    iEvent.put( cHadrons, "cHadrons" );
-   iEvent.put( partons,  "partons" );
+   iEvent.put( partons,  "algorithmicPartons" );
+   iEvent.put( physicsPartons,  "physicsPartons" );
    iEvent.put( leptons,  "leptons" );
-}
-
-// ------------ method called once each job just before starting event loop  ------------
-void
-HadronAndPartonSelector::beginJob()
-{
-}
-
-// ------------ method called once each job just after ending the event loop  ------------
-void
-HadronAndPartonSelector::endJob() {
-}
-
-// ------------ method called when starting to processes a run  ------------
-void
-HadronAndPartonSelector::beginRun(edm::Run&, edm::EventSetup const&)
-{
-}
-
-// ------------ method called when ending the processing of a run  ------------
-void
-HadronAndPartonSelector::endRun(edm::Run&, edm::EventSetup const&)
-{
-}
-
-// ------------ method called when starting to processes a luminosity block  ------------
-void
-HadronAndPartonSelector::beginLuminosityBlock(edm::LuminosityBlock&, edm::EventSetup const&)
-{
-}
-
-// ------------ method called when ending the processing of a luminosity block  ------------
-void
-HadronAndPartonSelector::endLuminosityBlock(edm::LuminosityBlock&, edm::EventSetup const&)
-{
 }
 
 // ------------ method fills 'descriptions' with the allowed parameters for the module  ------------

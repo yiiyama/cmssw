@@ -4,17 +4,11 @@ import FWCore.ParameterSet.Config as cms
 
 # run only if there are high pT jets
 from RecoJets.JetProducers.TracksForJets_cff import trackRefsForJets
-iter0TrackRefsForJets = trackRefsForJets.clone(src = cms.InputTag('initialStepTracks'))
-from RecoJets.JetProducers.ak4CaloJets_cfi import ak4CaloJets
-from RecoLocalCalo.CaloTowersCreator.calotowermaker_cfi import calotowermaker
-caloTowerForTrk = calotowermaker.clone(hbheInput=cms.InputTag('hbheprereco'))
-ak4CaloJetsForTrk = ak4CaloJets.clone(srcPVs = cms.InputTag('pixelVertices'), src= cms.InputTag('caloTowerForTrk'))
+initialStepTrackRefsForJets = trackRefsForJets.clone(src = cms.InputTag('initialStepTracks'))
+from RecoJets.JetProducers.caloJetsForTrk_cff import *
 jetsForCoreTracking = cms.EDFilter("CandPtrSelector", src = cms.InputTag("ak4CaloJetsForTrk"), cut = cms.string("pt > 100 && abs(eta) < 2.5"))
 
 # care only at tracks from main PV
-import RecoVertex.PrimaryVertexProducer.OfflinePrimaryVertices_cfi
-firstStepPrimaryVertices=RecoVertex.PrimaryVertexProducer.OfflinePrimaryVertices_cfi.offlinePrimaryVertices.clone()
-firstStepPrimaryVertices.TrackLabel = cms.InputTag("initialStepTracks")
 firstStepGoodPrimaryVertices = cms.EDFilter("PrimaryVertexObjectFilter",
      filterParams = cms.PSet(
      	     minNdof = cms.double(25.0),
@@ -34,13 +28,13 @@ jetCoreRegionalStepSeedLayers = cms.EDProducer("SeedingLayersEDProducer",
                             'BPix3+TIB1','BPix3+TIB2'),
     TIB = cms.PSet(
         matchedRecHits = cms.InputTag("siStripMatchedRecHits","matchedRecHit"),
-        TTRHBuilder = cms.string('WithTrackAngle')
+        TTRHBuilder = cms.string('WithTrackAngle'), clusterChargeCut = cms.PSet(refToPSet_ = cms.string('SiStripClusterChargeCutNone'))
     ),
     BPix = cms.PSet(
         useErrorsFromParam = cms.bool(True),
         hitErrorRPhi = cms.double(0.0027),
         hitErrorRZ = cms.double(0.006),
-        TTRHBuilder = cms.string('TTRHBuilderWithoutAngle4MixedPairs'),
+        TTRHBuilder = cms.string('WithTrackAngle'),
         HitProducer = cms.string('siPixelRecHits'),
         #skipClusters = cms.InputTag('jetCoreRegionalStepClusters')
     ),
@@ -48,7 +42,7 @@ jetCoreRegionalStepSeedLayers = cms.EDProducer("SeedingLayersEDProducer",
         useErrorsFromParam = cms.bool(True),
         hitErrorRPhi = cms.double(0.0051),
         hitErrorRZ = cms.double(0.0036),
-        TTRHBuilder = cms.string('TTRHBuilderWithoutAngle4MixedPairs'),
+        TTRHBuilder = cms.string('WithTrackAngle'),
         HitProducer = cms.string('siPixelRecHits'),
         #skipClusters = cms.InputTag('jetCoreRegionalStepClusters')
     )
@@ -70,7 +64,7 @@ jetCoreRegionalStepSeeds.RegionFactoryPSet = cms.PSet(
 #       JetSrc = cms.InputTag( "ak5CaloJets" ),
         vertexSrc = cms.InputTag( "firstStepGoodPrimaryVertices" ),
         measurementTrackerName = cms.string( "MeasurementTrackerEvent" ),
-        howToUseMeasurementTracker = cms.double( -1.0 )
+        howToUseMeasurementTracker = cms.string( "Never" )
       )
 )
 jetCoreRegionalStepSeeds.OrderedHitsFactoryPSet.SeedingLayers = 'jetCoreRegionalStepSeedLayers'
@@ -126,38 +120,54 @@ jetCoreRegionalStepTrackCandidates = RecoTracker.CkfPattern.CkfTrackCandidates_c
 # TRACK FITTING
 import RecoTracker.TrackProducer.TrackProducer_cfi
 jetCoreRegionalStepTracks = RecoTracker.TrackProducer.TrackProducer_cfi.TrackProducer.clone(
-    AlgorithmName = cms.string('iter7'),
+    AlgorithmName = cms.string('jetCoreRegionalStep'),
     src = 'jetCoreRegionalStepTrackCandidates',
     Fitter = cms.string('FlexibleKFFittingSmoother')
     )
 
 # Final selection
-import RecoTracker.IterativeTracking.LowPtTripletStep_cff
-import RecoTracker.FinalTrackSelectors.multiTrackSelector_cfi
-jetCoreRegionalStepSelector = RecoTracker.FinalTrackSelectors.multiTrackSelector_cfi.multiTrackSelector.clone(
-    src='jetCoreRegionalStepTracks',
-    trackSelectors= cms.VPSet(
-        RecoTracker.FinalTrackSelectors.multiTrackSelector_cfi.looseMTS.clone(
-            name = 'jetCoreRegionalStepLoose',
-            ), #end of pset
-        RecoTracker.FinalTrackSelectors.multiTrackSelector_cfi.tightMTS.clone(
-            name = 'jetCoreRegionalStepTight',
-            preFilterName = 'jetCoreRegionalStepLoose',
-            ),
-        RecoTracker.FinalTrackSelectors.multiTrackSelector_cfi.highpurityMTS.clone(
-            name = 'jetCoreRegionalStep',
-            preFilterName = 'jetCoreRegionalStepTight',
-            ),
-        ) #end of vpset
-    ) #end of clone
+from RecoTracker.IterativeTracking.InitialStep_cff import initialStepClassifier1
+#from RecoTracker.IterativeTracking.DetachedTripletStep_cff import detachedTripletStepClassifier1
+
+#jetCoreRegionalStep = initialStepClassifier1.clone()
+#jetCoreRegionalStep.src='jetCoreRegionalStepTracks'
+#jetCoreRegionalStep.qualityCuts = [-0.3,0.0,0.2]
+#jetCoreRegionalStep.vertices = 'firstStepGoodPrimaryVertices'
+
+#jetCoreRegionalStepClassifier1 = initialStepClassifier1.clone()
+#jetCoreRegionalStepClassifier1.src = 'jetCoreRegionalStepTracks'
+#jetCoreRegionalStepClassifier1.qualityCuts = [-0.2,0.0,0.4]
+#jetCoreRegionalStepClassifier2 = detachedTripletStepClassifier1.clone()
+#jetCoreRegionalStepClassifier2.src = 'jetCoreRegionalStepTracks'
+
+
+
+#from RecoTracker.FinalTrackSelectors.ClassifierMerger_cfi import *
+#jetCoreRegionalStep = ClassifierMerger.clone()
+#jetCoreRegionalStep.inputClassifiers=['jetCoreRegionalStepClassifier1','jetCoreRegionalStepClassifier2']
+
+
+from RecoTracker.FinalTrackSelectors.TrackCutClassifier_cfi import *
+jetCoreRegionalStep = TrackCutClassifier.clone()
+jetCoreRegionalStep.src='jetCoreRegionalStepTracks'
+jetCoreRegionalStep.mva.minPixelHits = [1,1,1]
+jetCoreRegionalStep.mva.maxChi2 = [9999.,9999.,9999.]
+jetCoreRegionalStep.mva.maxChi2n = [1.6,1.0,0.7]
+jetCoreRegionalStep.mva.minLayers = [3,5,5]
+jetCoreRegionalStep.mva.min3DLayers = [1,2,3]
+jetCoreRegionalStep.mva.maxLostLayers = [4,3,2]
+jetCoreRegionalStep.mva.maxDz = [0.5,0.35,0.2];
+jetCoreRegionalStep.mva.maxDr = [0.3,0.2,0.1];
+jetCoreRegionalStep.vertices = 'firstStepGoodPrimaryVertices'
+
 
 # Final sequence
-JetCoreRegionalStep = cms.Sequence(iter0TrackRefsForJets*caloTowerForTrk*ak4CaloJetsForTrk*jetsForCoreTracking*
-                                   firstStepPrimaryVertices*
+JetCoreRegionalStep = cms.Sequence(initialStepTrackRefsForJets*caloJetsForTrk*jetsForCoreTracking*
                                    firstStepGoodPrimaryVertices*
                                    #jetCoreRegionalStepClusters*
                                    jetCoreRegionalStepSeedLayers*
                                    jetCoreRegionalStepSeeds*
                                    jetCoreRegionalStepTrackCandidates*
                                    jetCoreRegionalStepTracks*
-                                   jetCoreRegionalStepSelector)
+#                                   jetCoreRegionalStepClassifier1*jetCoreRegionalStepClassifier2*
+                                   jetCoreRegionalStep)

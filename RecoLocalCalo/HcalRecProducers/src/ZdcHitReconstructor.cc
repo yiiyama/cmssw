@@ -67,7 +67,7 @@ void ZdcHitReconstructor::beginRun(edm::Run const&r, edm::EventSetup const & es)
    myobject = new HcalLongRecoParams(*p.product());
 
    edm::ESHandle<HcalTopology> htopo;
-   es.get<IdealGeometryRecord>().get(htopo);
+   es.get<HcalRecNumberingRecord>().get(htopo);
    theTopology=new HcalTopology(*htopo);
    myobject->setTopo(theTopology);
 
@@ -84,8 +84,8 @@ void ZdcHitReconstructor::produce(edm::Event& e, const edm::EventSetup& eventSet
   eventSetup.get<HcalDbRecord>().get(conditions);
   
   edm::ESHandle<HcalChannelQuality> p;
-  eventSetup.get<HcalChannelQualityRcd>().get(p);
-  HcalChannelQuality* myqual = new HcalChannelQuality(*p.product());
+  eventSetup.get<HcalChannelQualityRcd>().get("withTopo", p);
+  const HcalChannelQuality* myqual = p.product();
 
   edm::ESHandle<HcalSeverityLevelComputer> mycomputer;
   eventSetup.get<HcalSeverityLevelComputerRcd>().get(mycomputer);
@@ -146,5 +146,4 @@ void ZdcHitReconstructor::produce(edm::Event& e, const edm::EventSetup& eventSet
      e.put(rec);     
    } // else if (det_==DetId::Calo...)
 
-   delete myqual;
 } // void HcalHitReconstructor::produce(...)

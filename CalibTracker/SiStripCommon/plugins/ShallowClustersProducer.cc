@@ -7,7 +7,7 @@
 #include "DataFormats/SiStripDigi/interface/SiStripProcessedRawDigi.h"
 #include "DataFormats/Common/interface/DetSetVectorNew.h"
 #include "DataFormats/TrackerCommon/interface/TrackerTopology.h"
-#include "Geometry/Records/interface/IdealGeometryRecord.h"
+#include "Geometry/Records/interface/TrackerTopologyRcd.h"
 #include "boost/foreach.hpp"
 
 ShallowClustersProducer::ShallowClustersProducer(const edm::ParameterSet& iConfig) 
@@ -58,7 +58,7 @@ void ShallowClustersProducer::
 produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
   //Retrieve tracker topology from geometry
   edm::ESHandle<TrackerTopology> tTopoHandle;
-  iSetup.get<IdealGeometryRecord>().get(tTopoHandle);
+  iSetup.get<TrackerTopologyRcd>().get(tTopoHandle);
   const TrackerTopology* const tTopo = tTopoHandle.product();
  
   std::auto_ptr<std::vector<unsigned> >       number       ( new std::vector<unsigned>(7,0) );
@@ -196,12 +196,12 @@ produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
 ShallowClustersProducer::NearDigis::
 NearDigis(const SiStripClusterInfo& info) {
   max =  info.maxCharge();
-  left =           info.maxIndex()    > uint16_t(0)                ? info.stripCharges().at(info.maxIndex()-1)      : 0 ;
-  Lleft =          info.maxIndex()    > uint16_t(1)                ? info.stripCharges().at(info.maxIndex()-2)      : 0 ;
-  right=  unsigned(info.maxIndex()+1) < info.stripCharges().size() ? info.stripCharges().at(info.maxIndex()+1)      : 0 ;
-  Rright= unsigned(info.maxIndex()+2) < info.stripCharges().size() ? info.stripCharges().at(info.maxIndex()+2)      : 0 ;
-  first = info.stripCharges().at(0);
-  last =  info.stripCharges().at(info.width()-1);
+  left =           info.maxIndex()    > uint16_t(0)                ? info.stripCharges()[info.maxIndex()-1]      : 0 ;
+  Lleft =          info.maxIndex()    > uint16_t(1)                ? info.stripCharges()[info.maxIndex()-2]      : 0 ;
+  right=  unsigned(info.maxIndex()+1) < info.stripCharges().size() ? info.stripCharges()[info.maxIndex()+1]      : 0 ;
+  Rright= unsigned(info.maxIndex()+2) < info.stripCharges().size() ? info.stripCharges()[info.maxIndex()+2]      : 0 ;
+  first = info.stripCharges()[0];
+  last =  info.stripCharges()[info.width()-1];
 }
 
 ShallowClustersProducer::NearDigis::

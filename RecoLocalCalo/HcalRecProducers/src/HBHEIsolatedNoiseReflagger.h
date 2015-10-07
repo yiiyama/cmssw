@@ -7,22 +7,23 @@ Description: "Reflags" HB/HE hits based on their ECAL, HCAL, and tracking isolat
 Original Author: John Paul Chou (Brown University)
                  Thursday, September 2, 2010
 */
+#include <memory>
 
 #include "FWCore/Framework/interface/Frameworkfwd.h"
-#include "FWCore/Framework/interface/EDProducer.h"
+#include "FWCore/Framework/interface/stream/EDProducer.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
 
 #include "RecoLocalCalo/HcalRecAlgos/interface/HBHEIsolatedNoiseAlgos.h"
 
 
-class HBHEIsolatedNoiseReflagger : public edm::EDProducer {
+class HBHEIsolatedNoiseReflagger : public edm::stream::EDProducer<> {
  public:
   explicit HBHEIsolatedNoiseReflagger(const edm::ParameterSet&);
   ~HBHEIsolatedNoiseReflagger();
   
   
  private:
-  virtual void produce(edm::Event&, const edm::EventSetup&);
+  virtual void produce(edm::Event&, const edm::EventSetup&) override;
 
   void DumpHBHEHitMap(std::vector<HBHEHitMap>& i) const;
 

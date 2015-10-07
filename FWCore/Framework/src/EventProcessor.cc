@@ -86,8 +86,28 @@
 #include <sched.h>
 #endif
 
-//Needed for introspection
-#include "Cintex/Cintex.h"
+namespace {
+  //Sentry class to only send a signal if an
+  // exception occurs. An exception is identified
+  // by the destructor being called without first
+  // calling completedSuccessfully().
+  class SendSourceTerminationSignalIfException {
+  public:
+    SendSourceTerminationSignalIfException(edm::ActivityRegistry* iReg):
+    reg_(iReg) {}
+    ~SendSourceTerminationSignalIfException() {
+      if(reg_) {
+        reg_->preSourceEarlyTerminationSignal_(edm::TerminationOrigin::ExceptionFromThisContext);
+      }
+    }
+    void completedSuccessfully() {
+      reg_ = nullptr;
+    }
+  private:
+    edm::ActivityRegistry* reg_;
+    
+  };
+}
 
 namespace edm {
 
@@ -95,8 +115,9 @@ namespace edm {
   std::unique_ptr<InputSource>
   makeInput(ParameterSet& params,
             CommonParams const& common,
-            ProductRegistry& preg,
+            std::shared_ptr<ProductRegistry> preg,
             std::shared_ptr<BranchIDListHelper> branchIDListHelper,
+            std::shared_ptr<ThinnedAssociationsHelper> thinnedAssociationsHelper,
             std::shared_ptr<ActivityRegistry> areg,
             std::shared_ptr<ProcessConfiguration const> processConfiguration,
             PreallocationConfiguration const& allocations) {
@@ -140,7 +161,10 @@ namespace edm {
                          processConfiguration.get(),
                          ModuleDescription::getUniqueID());
 
-    InputSourceDescription isdesc(md, preg, branchIDListHelper, areg, common.maxEventsInput_, common.maxLumisInput_, common.maxSecondsUntilRampdown_, allocations);
+    InputSourceDescription isdesc(md, preg, branchIDListHelper, thinnedAssociationsHelper, areg,
+                                  common.maxEventsInput_, common.maxLumisInput_,
+                                  common.maxSecondsUntilRampdown_, allocations);
+
     areg->preSourceConstructionSignal_(md);
     std::unique_ptr<InputSource> input;
     try {
@@ -372,8 +396,6 @@ namespace edm {
 
     //std::cerr << processDesc->dump() << std::endl;
    
-    ROOT::Cintex::Cintex::Enable();
-
     // register the empty parentage vector , once and for all
     ParentageRegistry::instance()->insertMapped(Parentage());
 
@@ -491,7 +513,7 @@ namespace edm {
     preallocations_ = PreallocationConfiguration{nThreads,nStreams,nConcurrentLumis,nConcurrentRuns};
 
     // initialize the input source
-    input_ = makeInput(*parameterSet, *common, *items.preg_, items.branchIDListHelper_, items.actReg_, items.processConfiguration_, preallocations_);
+    input_ = makeInput(*parameterSet, *common, items.preg_, items.branchIDListHelper_, items.thinnedAssociationsHelper_, items.actReg_, items.processConfiguration_, preallocations_);
 
     // intialize the Schedule
     schedule_ = items.initSchedule(*parameterSet,subProcessParameterSet.get(),preallocations_,&processContext_);
@@ -499,8 +521,9 @@ namespace edm {
     // set the data members
     act_table_ = std::move(items.act_table_);
     actReg_ = items.actReg_;
-    preg_.reset(items.preg_.release());
+    preg_ = items.preg_;
     branchIDListHelper_ = items.branchIDListHelper_;
+    thinnedAssociationsHelper_ = items.thinnedAssociationsHelper_;
     processConfiguration_ = items.processConfiguration_;
     processContext_.setProcessConfiguration(processConfiguration_.get());
     principalCache_.setProcessHistoryRegistry(input_->processHistoryRegistry());
@@ -510,7 +533,7 @@ namespace edm {
     principalCache_.setNumberOfConcurrentPrincipals(preallocations_);
     for(unsigned int index = 0; index<preallocations_.numberOfStreams(); ++index ) {
       // Reusable event principal
-      auto ep = std::make_shared<EventPrincipal>(preg_, branchIDListHelper_, *processConfiguration_, historyAppender_.get(), index);
+      auto ep = std::make_shared<EventPrincipal>(preg_, branchIDListHelper_, thinnedAssociationsHelper_, *processConfiguration_, historyAppender_.get(), index);
       ep->preModuleDelayedGetSignal_.connect(std::cref(actReg_->preModuleEventDelayedGetSignal_));
       ep->postModuleDelayedGetSignal_.connect(std::cref(actReg_->postModuleEventDelayedGetSignal_));
       principalCache_.insert(ep);
@@ -521,6 +544,7 @@ namespace edm {
                                        *parameterSet,
                                        preg_,
                                        branchIDListHelper_,
+                                       *thinnedAssociationsHelper_,
                                        *espController_,
                                        *actReg_,
                                        token,
@@ -563,6 +587,9 @@ namespace edm {
                                  preallocations_.numberOfRuns(),
                                  preallocations_.numberOfThreads());
     actReg_->preallocateSignal_(bounds);
+    pathsAndConsumesOfModules_.initialize(schedule_.get(), preg_);
+    actReg_->preBeginJobSignal_(pathsAndConsumesOfModules_, processContext_);
+
     //NOTE:  This implementation assumes 'Job' means one call
     // the EventProcessor::run
     // If it really means once per 'application' then this code will
@@ -612,6 +639,8 @@ namespace edm {
         c.call([this,i](){ this->subProcess_->doEndStream(i); } );
       }
     }
+    auto actReg = actReg_.get();
+    c.call([actReg](){actReg->preEndJobSignal_();});
     schedule_->endJob(c);
     if(hasSubProcess()) {
       c.call(std::bind(&SubProcess::doEndJob, subProcess_.get()));
@@ -620,7 +649,6 @@ namespace edm {
     if(looper_) {
       c.call(std::bind(&EDLooperBase::endOfJob, looper_));
     }
-    auto actReg = actReg_.get();
     c.call([actReg](){actReg->postEndJobSignal_();});
     if(c.hasThrown()) {
       c.rethrow();
@@ -1270,19 +1298,28 @@ namespace edm {
             bool more = true;
             if(numberOfForkedChildren_ > 0) {
               size_t size = preg_->size();
-              more = input_->skipForForking();
+              {
+                SendSourceTerminationSignalIfException sentry(actReg_.get());
+                more = input_->skipForForking();
+                sentry.completedSuccessfully();
+              }
               if(more) {
                 if(size < preg_->size()) {
                   principalCache_.adjustIndexesAfterProductRegistryAddition();
                 }
                 principalCache_.adjustEventsToNewProductRegistry(preg_);
               }
-            } 
-            itemType = (more ? input_->nextItemType() : InputSource::IsStop);
+            }
+            {
+              SendSourceTerminationSignalIfException sentry(actReg_.get());
+              itemType = (more ? input_->nextItemType() : InputSource::IsStop);
+              sentry.completedSuccessfully();
+            }
             
             FDEBUG(1) << "itemType = " << itemType << "\n";
             
             if(checkForAsyncStopRequest(returnCode)) {
+              actReg_->preSourceEarlyTerminationSignal_(TerminationOrigin::ExternalSignal);
               forceLooperToEnd_ = true;
               machine->process_event(statemachine::Stop());
               forceLooperToEnd_ = false;
@@ -1425,6 +1462,8 @@ namespace edm {
   void EventProcessor::readFile() {
     FDEBUG(1) << " \treadFile\n";
     size_t size = preg_->size();
+    SendSourceTerminationSignalIfException sentry(actReg_.get());
+
     fb_ = input_->readFile();
     if(size < preg_->size()) {
       principalCache_.adjustIndexesAfterProductRegistryAddition();
@@ -1435,11 +1474,14 @@ namespace edm {
         preallocations_.numberOfThreads()>1)) {
         fb_->setNotFastClonable(FileBlock::ParallelProcesses);
     }
+    sentry.completedSuccessfully();
   }
 
   void EventProcessor::closeInputFile(bool cleaningUpAfterException) {
     if (fb_.get() != nullptr) {
+      SendSourceTerminationSignalIfException sentry(actReg_.get());
       input_->closeFile(fb_.get(), cleaningUpAfterException);
+      sentry.completedSuccessfully();
     }
     FDEBUG(1) << "\tcloseInputFile\n";
   }
@@ -1531,13 +1573,23 @@ namespace edm {
 
   void EventProcessor::beginRun(statemachine::Run const& run) {
     RunPrincipal& runPrincipal = principalCache_.runPrincipal(run.processHistoryID(), run.runNumber());
-    input_->doBeginRun(runPrincipal, &processContext_);
+    {
+      SendSourceTerminationSignalIfException sentry(actReg_.get());
+
+      input_->doBeginRun(runPrincipal, &processContext_);
+      sentry.completedSuccessfully();
+    }
+
     IOVSyncValue ts(EventID(runPrincipal.run(), 0, 0),
                     runPrincipal.beginTime());
     if(forceESCacheClearOnNewRun_){
       espController_->forceCacheClear();
     }
-    espController_->eventSetupForInstance(ts);
+    {
+      SendSourceTerminationSignalIfException sentry(actReg_.get());
+      espController_->eventSetupForInstance(ts);
+      sentry.completedSuccessfully();
+    }
     EventSetup const& es = esp_->eventSetup();
     if(looper_ && looperBeginJobRun_== false) {
       looper_->copyInfo(ScheduleInfo(schedule_.get()));
@@ -1573,10 +1625,20 @@ namespace edm {
 
   void EventProcessor::endRun(statemachine::Run const& run, bool cleaningUpAfterException) {
     RunPrincipal& runPrincipal = principalCache_.runPrincipal(run.processHistoryID(), run.runNumber());
-    input_->doEndRun(runPrincipal, cleaningUpAfterException, &processContext_);
+    {
+      SendSourceTerminationSignalIfException sentry(actReg_.get());
+
+      input_->doEndRun(runPrincipal, cleaningUpAfterException, &processContext_);
+      sentry.completedSuccessfully();
+    }
+
     IOVSyncValue ts(EventID(runPrincipal.run(), LuminosityBlockID::maxLuminosityBlockNumber(), EventID::maxEventNumber()),
                     runPrincipal.endTime());
-    espController_->eventSetupForInstance(ts);
+    {
+      SendSourceTerminationSignalIfException sentry(actReg_.get());
+      espController_->eventSetupForInstance(ts);
+      sentry.completedSuccessfully();
+    }
     EventSetup const& es = esp_->eventSetup();
     {
       for(unsigned int i=0; i<preallocations_.numberOfStreams();++i) {
@@ -1606,7 +1668,12 @@ namespace edm {
 
   void EventProcessor::beginLumi(ProcessHistoryID const& phid, RunNumber_t run, LuminosityBlockNumber_t lumi) {
     LuminosityBlockPrincipal& lumiPrincipal = principalCache_.lumiPrincipal(phid, run, lumi);
-    input_->doBeginLumi(lumiPrincipal, &processContext_);
+    {
+      SendSourceTerminationSignalIfException sentry(actReg_.get());
+
+      input_->doBeginLumi(lumiPrincipal, &processContext_);
+      sentry.completedSuccessfully();
+    }
 
     Service<RandomNumberGenerator> rng;
     if(rng.isAvailable()) {
@@ -1617,7 +1684,11 @@ namespace edm {
     // NOTE: Using 0 as the event number for the begin of a lumi block is a bad idea
     // lumi blocks know their start and end times why not also start and end events?
     IOVSyncValue ts(EventID(lumiPrincipal.run(), lumiPrincipal.luminosityBlock(), 0), lumiPrincipal.beginTime());
-    espController_->eventSetupForInstance(ts);
+    {
+      SendSourceTerminationSignalIfException sentry(actReg_.get());
+      espController_->eventSetupForInstance(ts);
+      sentry.completedSuccessfully();
+    }
     EventSetup const& es = esp_->eventSetup();
     {
       typedef OccurrenceTraits<LuminosityBlockPrincipal, BranchActionGlobalBegin> Traits;
@@ -1647,12 +1718,21 @@ namespace edm {
 
   void EventProcessor::endLumi(ProcessHistoryID const& phid, RunNumber_t run, LuminosityBlockNumber_t lumi, bool cleaningUpAfterException) {
     LuminosityBlockPrincipal& lumiPrincipal = principalCache_.lumiPrincipal(phid, run, lumi);
-    input_->doEndLumi(lumiPrincipal, cleaningUpAfterException, &processContext_);
+    {
+      SendSourceTerminationSignalIfException sentry(actReg_.get());
+
+      input_->doEndLumi(lumiPrincipal, cleaningUpAfterException, &processContext_);
+      sentry.completedSuccessfully();
+    }
     //NOTE: Using the max event number for the end of a lumi block is a bad idea
     // lumi blocks know their start and end times why not also start and end events?
     IOVSyncValue ts(EventID(lumiPrincipal.run(), lumiPrincipal.luminosityBlock(), EventID::maxEventNumber()),
                     lumiPrincipal.endTime());
-    espController_->eventSetupForInstance(ts);
+    {
+      SendSourceTerminationSignalIfException sentry(actReg_.get());
+      espController_->eventSetupForInstance(ts);
+      sentry.completedSuccessfully();
+    }
     EventSetup const& es = esp_->eventSetup();
     {
       for(unsigned int i=0; i<preallocations_.numberOfStreams();++i) {
@@ -1688,7 +1768,11 @@ namespace edm {
         << "Contact a Framework Developer\n";
     }
     auto rp = std::make_shared<RunPrincipal>(input_->runAuxiliary(), preg_, *processConfiguration_, historyAppender_.get(), 0);
-    input_->readRun(*rp, *historyAppender_);
+    {
+      SendSourceTerminationSignalIfException sentry(actReg_.get());
+      input_->readRun(*rp, *historyAppender_);
+      sentry.completedSuccessfully();
+    }
     assert(input_->reducedProcessHistoryID() == rp->reducedProcessHistoryID());
     principalCache_.insert(rp);
     return statemachine::Run(rp->reducedProcessHistoryID(), input_->run());
@@ -1697,7 +1781,11 @@ namespace edm {
   statemachine::Run EventProcessor::readAndMergeRun() {
     principalCache_.merge(input_->runAuxiliary(), preg_);
     auto runPrincipal =principalCache_.runPrincipalPtr();
-    input_->readAndMergeRun(*runPrincipal);
+    {
+      SendSourceTerminationSignalIfException sentry(actReg_.get());
+      input_->readAndMergeRun(*runPrincipal);
+      sentry.completedSuccessfully();
+    }
     assert(input_->reducedProcessHistoryID() == runPrincipal->reducedProcessHistoryID());
     return statemachine::Run(runPrincipal->reducedProcessHistoryID(), input_->run());
   }
@@ -1717,7 +1805,11 @@ namespace edm {
         << "Contact a Framework Developer\n";
     }
     auto lbp = std::make_shared<LuminosityBlockPrincipal>(input_->luminosityBlockAuxiliary(), preg_, *processConfiguration_, historyAppender_.get(), 0);
-    input_->readLuminosityBlock(*lbp, *historyAppender_);
+    {
+      SendSourceTerminationSignalIfException sentry(actReg_.get());
+      input_->readLuminosityBlock(*lbp, *historyAppender_);
+      sentry.completedSuccessfully();
+    }
     lbp->setRunPrincipal(principalCache_.runPrincipalPtr());
     principalCache_.insert(lbp);
     return input_->luminosityBlock();
@@ -1725,7 +1817,11 @@ namespace edm {
 
   int EventProcessor::readAndMergeLumi() {
     principalCache_.merge(input_->luminosityBlockAuxiliary(), preg_);
-    input_->readAndMergeLumi(*principalCache_.lumiPrincipalPtr());
+    {
+      SendSourceTerminationSignalIfException sentry(actReg_.get());
+      input_->readAndMergeLumi(*principalCache_.lumiPrincipalPtr());
+      sentry.completedSuccessfully();
+    }
     return input_->luminosityBlock();
   }
 
@@ -1816,7 +1912,6 @@ namespace edm {
             if(sr) {
               delayedReaderGuard = std::unique_lock<SharedResourcesAcquirer>(*sr);
             }
-            
             InputSource::ItemType itemType = input_->nextItemType();
             if (InputSource::IsEvent !=itemType) {
               nextItemTypeFromProcessingEvents_ = itemType;
@@ -1826,6 +1921,7 @@ namespace edm {
             }
             if((asyncStopRequestedWhileProcessingEvents_=checkForAsyncStopRequest(asyncStopStatusCodeFromProcessingEvents_))) {
               //std::cerr<<"task told to async stop\n";
+              actReg_->preSourceEarlyTerminationSignal_(TerminationOrigin::ExternalSignal);
               break;
             }
             readEvent(iStreamIndex);
@@ -1834,6 +1930,8 @@ namespace edm {
         if(deferredExceptionPtrIsSet_.load(std::memory_order_acquire)) {
           //another thread hit an exception
           //std::cerr<<"another thread saw an exception\n";
+          actReg_->preSourceEarlyTerminationSignal_(TerminationOrigin::ExceptionFromAnotherContext);
+
           break;
         }
         processEvent(iStreamIndex);
@@ -1885,7 +1983,11 @@ namespace edm {
     //TODO this will have to become per stream
     auto& event = principalCache_.eventPrincipal(iStreamIndex);
     StreamContext streamContext(event.streamID(), &processContext_);
+    
+    SendSourceTerminationSignalIfException sentry(actReg_.get());
     input_->readEvent(event, streamContext);
+    sentry.completedSuccessfully();
+    
     FDEBUG(1) << "\treadEvent\n";
   }
   void EventProcessor::processEvent(unsigned int iStreamIndex) {

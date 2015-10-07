@@ -3,8 +3,6 @@
  <use name="DataFormats/Common"/>
  <use name="DataFormats/DetId"/>
  <use name="DataFormats/Scalers"/>
- <use name="DataFormats/TrajectorySeed"/>
- <use name="DataFormats/TrackerRecHit2D"/>
  <use name="DataFormats/SiPixelCluster"/>
  <use name="DataFormats/SiPixelDigi"/>
  <use name="DataFormats/SiStripCluster"/>
@@ -16,8 +14,9 @@
  <use name="Fireworks/Tracks"/>
  <use name="rootinteractive"/>
  <use name="rootphysics"/>
- <use name="rootrflx"/>
+
  <lib name="Eve"/>
+ <lib name="Geom"/>
  <lib name="RGL"/>
  <flags EDM_PLUGIN="1"/>
 </library>

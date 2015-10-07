@@ -1,10 +1,20 @@
 # available "type"s and relative global tags
 globalTag = {
-  'FULL': 'auto:startup',
-  'GRun': 'auto:startup',       # use as default
-  'data': 'auto:hltonline',
-  'HIon': 'auto:starthi',
-  'PIon': 'auto:startup',
+  'Fake': 'auto:run1_mc_Fake',
+  'FULL': 'auto:run2_mc_FULL',
+  'GRun': 'auto:run2_mc_GRun',       # used as default
+  '25ns14e33_v4': 'auto:run2_mc_25ns14e33_v4',
+  '25ns14e33_v3': 'auto:run2_mc_25ns14e33_v3',
+  '50ns_5e33_v3': 'auto:run2_mc_50ns_5e33_v3',
+  '25ns14e33_v1': 'auto:run2_mc_25ns14e33_v1',
+  '50ns_5e33_v1': 'auto:run2_mc_50ns_5e33_v1',
+  '50nsGRun': 'auto:run2_mc_50nsGRun',
+  '50ns' : 'auto:run2_mc_50nsGRun',
+  'HIon' : 'auto:run2_mc_HIon',
+  'PIon' : 'auto:run2_mc_PIon',
+  'LowPU': 'auto:run2_mc_LowPU',
+  '25nsLowPU': 'auto:run2_mc_25nsLowPU',
+  'data' : 'auto:run1_hlt',
 }
 
 
@@ -42,27 +52,64 @@ class ConnectionL1TMenuXml(object):
 
 # type used to store a reference to an HLT configuration
 class ConnectionHLTMenu(object):
+  valid_versions  = 'v1', 'v2'
+  valid_databases = 'online', 'offline', 'adg'
+  compatibility   = { 'hltdev': ('v1', 'offline'), 'orcoff': ('v2', 'adg') }
+
   def __init__(self, value):
-    self.value = value
-    self.db    = None
-    self.name  = None
-    self.run   = None
+    self.version    = None
+    self.database   = None
+    self.name       = None
+    self.run        = None
 
-    # extract the database and configuration name
-    if value:
-      if ':' in self.value:
-        (db, name) = self.value.split(':')
-        if db == 'run':
-          self.run  = name
-        elif db in ('hltdev', 'orcoff'):
-          self.db   = db
-          self.name = name
-        else:
-          raise Exception('Unknown ConfDB database "%s", valid values are "hltdev" (default) and "orcoff")' % db)
+    if not value:
+      return
+
+    if not ':' in value:
+      # default to 'v1/offline'
+      self.version    = 'v1'
+      self.database   = 'offline'
+      self.name       = value
+      return
+
+    # extract the version, database and configuration name
+    tokens = value.split(':')
+    if len(tokens) != 2:
+      raise Exception('Invalid HLT menu specification "%s"' % value)
+    (db, name) = tokens
+    # check if the menu should be automatically determined based on the run number
+    if db == 'run':
+      self.version  = 'v2'
+      self.database = 'adg'
+      self.run      = name
+    # check for backward compatibility names
+    elif db in self.compatibility:
+      self.version, self.database = self.compatibility[db]
+      self.name = name
+    else:
+      if '/' in db:
+        # extract the version and database
+        tokens = db.split('/')
+        if len(tokens) != 2:
+          raise Exception('Invalid HLT menu specification "%s"' % value)
+        (v, db) = tokens
+        if v not in self.valid_versions:
+          raise Exception('Invalid HLT database version "%s", valid values are "%s"' % (v, '", "'.join(self.valid_versions)))
+        if db not in self.valid_databases:
+          raise Exception('Invalid HLT database "%s", valid values are "%s"' % (db, '", "'.join(self.valid_databases)))
+        self.version  = v
+        self.database = db
+        self.name     = name
       else:
-        self.db   = 'hltdev'
-        self.name = self.value
-
+        # use the default version for the given database
+        if db not in self.valid_databases:
+          raise Exception('Invalid HLT database "%s", valid values are "%s"' % (db, '", "'.join(self.valid_databases)))
+        self.database = db
+        if db == 'offline' :
+          self.version  = 'v1'
+        else:
+          self.version  = 'v2'
+        self.name     = name
 
 # options marked with a (*) only apply when creating a whole process configuration
 class HLTProcessOptions(object):
@@ -75,6 +122,7 @@ class HLTProcessOptions(object):
     self.globaltag  = None        # (*) if set, override the GlobalTag
     self.l1         = None        # (*) if set, override the L1 menu
     self.l1Xml      = None        # (*) if set, override the L1 menu Xml
+    self.l1skim     = False       # (*) if set, add snippet to process L1 skim files done with new L1, ignoring old L1
     self.emulator   = None        # (*) if set, run (part of) the L1 emulator instead of taking the L1 results from the data
     self.prescale   = None        # (*) if set, force the use of a specific prescale column. If set to "none", unprescale all paths
     self.open       = False       #     if set, cms.ignore all filters, making all paths run on and accept all events
@@ -82,11 +130,12 @@ class HLTProcessOptions(object):
     self.profiling  = False       #     if set, instrument the menu for profiling measurements
     self.timing     = False       #     if set, instrument the menu for timing measurements (implies profiling)
     self.paths      = None        #     if set, include in the dump only the given paths (wildcards are supported)
-    self.input      = None        # (*) if set, run on a specific input file
+    self.input      = None        # (*) if set, specify the input file(s) or dataset
+    self.parent     = None        # (*) if set, specify the parent input file(s) or dataset
     self.events     = 100         # (*) run on these many events
     self.output     = 'all'       # (*) output 'all', 'minimal' or 'none' output modules
     self.fragment   = False       #     prepare a configuration fragment (true) or a whole process (false)
-    self.fastsim    = False       #     prepare a configuration fragment suitable for FastSim
+    self.hilton     = False       #     prepare a configuration for running with hilton-like modules
 
 
   # convert HLT and L1 menus to a dedicated object representation on the fly
@@ -100,11 +149,6 @@ class HLTProcessOptions(object):
     elif name is 'l1Xml' and type(value) is not ConnectionL1TMenuXml:
       # format '--l1Xml' as needed
       object.__setattr__(self, name, ConnectionL1TMenuXml(value))
-    elif name is 'fastsim' and value:
-      # '--fastsim' implies '--fragment' and '--mc'
-      object.__setattr__(self, 'fastsim',   True)
-      object.__setattr__(self, 'fragment',  True)
-      object.__setattr__(self, 'data',      False)
     elif name is 'open' and value:
       # '--open' implies '--unprescale'
       object.__setattr__(self, 'open',      True)

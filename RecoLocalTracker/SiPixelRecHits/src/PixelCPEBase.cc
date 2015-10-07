@@ -20,15 +20,12 @@
 // Magnetic field
 #include "MagneticField/Engine/interface/MagneticField.h"
 
-#include "DataFormats/SiPixelDetId/interface/PXBDetId.h"
-#include "DataFormats/SiPixelDetId/interface/PXFDetId.h"
-#include "DataFormats/SiPixelDetId/interface/PixelSubdetector.h"
 
 #include <iostream>
 
 using namespace std;
 
-//#define NEW_CPEERROR // must be constistent with base.cc, generic cc/h and genericProducer.cc 
+#define NEW_CPEERROR // must be constistent with base.cc, generic cc/h and genericProducer.cc 
 
 namespace {
 #ifndef NEW_CPEERROR  
@@ -44,6 +41,7 @@ namespace {
 PixelCPEBase::PixelCPEBase(edm::ParameterSet const & conf, 
                            const MagneticField *mag, 
                            const TrackerGeometry& geom,
+			   const TrackerTopology& ttopo,
 			   const SiPixelLorentzAngle * lorentzAngle, 
 			   const SiPixelGenErrorDBObject * genErrorDBObject, 
 			   const SiPixelTemplateDBObject * templateDBobject,
@@ -52,7 +50,7 @@ PixelCPEBase::PixelCPEBase(edm::ParameterSet const & conf,
   //  : useLAAlignmentOffsets_(false), useLAOffsetFromConfig_(false),
   : useLAOffsetFromConfig_(false),
     useLAWidthFromConfig_(false), useLAWidthFromDB_(false), theFlag_(flag),
-    magfield_(mag), geom_(geom)
+    magfield_(mag), geom_(geom), ttopo_(ttopo)
 {
 
 #ifdef EDM_ML_DEBUG
@@ -70,7 +68,7 @@ PixelCPEBase::PixelCPEBase(edm::ParameterSet const & conf,
 
   //-- Template Calibration Object from DB
 #ifdef NEW_CPEERROR
-  if(theFlag_!=0) templateDBobject_ = templateDBobject;
+  if(theFlag_!=0) templateDBobject_ = templateDBobject; // flag to check if it is generic or templates
 #else
   templateDBobject_ = templateDBobject;
 #endif
@@ -80,6 +78,7 @@ PixelCPEBase::PixelCPEBase(edm::ParameterSet const & conf,
 
   // Read templates and/or generic errors from DB
   LoadTemplatesFromDB_ = conf.getParameter<bool>("LoadTemplatesFromDB"); 
+  //cout<<" use generros/templaets "<<LoadTemplatesFromDB_<<endl;
 
   //--- Algorithm's verbosity
   theVerboseLevel = 
@@ -109,7 +108,6 @@ PixelCPEBase::PixelCPEBase(edm::ParameterSet const & conf,
   //useLAAlignmentOffsets_ = conf.existsAs<bool>("useLAAlignmentOffsets")?
   //conf.getParameter<bool>("useLAAlignmentOffsets"):false;
 
-
   // Used only for testing
   lAOffset_ = conf.existsAs<double>("lAOffset")?  // fixed LA value 
               conf.getParameter<double>("lAOffset"):0.0;
@@ -132,7 +130,8 @@ PixelCPEBase::PixelCPEBase(edm::ParameterSet const & conf,
 			   <<lAOffset_<<" "<<lAWidthBPix_<<" "<<lAWidthFPix_<<endl; //dk
   
   fillDetParams();
-  
+
+  //cout<<" LA "<<lAOffset_<<" "<<lAWidthBPix_<<" "<<lAWidthFPix_<<endl; //dk
 }
 
 //-----------------------------------------------------------------------------
@@ -142,8 +141,22 @@ void PixelCPEBase::fillDetParams()
 {
   //cout<<" in fillDetParams "<<theFlag_<<endl;
 
-  const unsigned m_detectors = geom_.offsetDU(GeomDetEnumerators::TIB); //first non-pixel detector unit
   auto const & dus = geom_.detUnits();
+  unsigned m_detectors = dus.size();
+  for(unsigned int i=1;i<7;++i) {
+    LogDebug("LookingForFirstStrip") << "Subdetector " << i 
+				     << " GeomDetEnumerator " << GeomDetEnumerators::tkDetEnum[i] 
+				     << " offset " << geom_.offsetDU(GeomDetEnumerators::tkDetEnum[i]) 
+				     << " is it strip? " << (geom_.offsetDU(GeomDetEnumerators::tkDetEnum[i]) != dus.size() ? 
+							     dus[geom_.offsetDU(GeomDetEnumerators::tkDetEnum[i])]->type().isTrackerStrip() : false);
+    if(geom_.offsetDU(GeomDetEnumerators::tkDetEnum[i]) != dus.size() && 
+       dus[geom_.offsetDU(GeomDetEnumerators::tkDetEnum[i])]->type().isTrackerStrip()) {
+      if(geom_.offsetDU(GeomDetEnumerators::tkDetEnum[i]) < m_detectors) m_detectors = geom_.offsetDU(GeomDetEnumerators::tkDetEnum[i]);
+    }
+  } 
+  LogDebug("LookingForFirstStrip") << " Chosen offset: " << m_detectors;
+
+
   m_DetParams.resize(m_detectors);
   //cout<<"caching "<<m_detectors<<" pixel detectors"<<endl;
   for (unsigned i=0; i!=m_detectors;++i) {
@@ -174,6 +187,7 @@ void PixelCPEBase::fillDetParams()
 
     if(theFlag_==0) { // for generic
 #ifdef NEW_CPEERROR
+      if(LoadTemplatesFromDB_ ) // do only if genError requested 
 	p.detTemplateId = genErrorDBObject_->getGenErrorID(p.theDet->geographicalId().rawId());
 #else   
       if(useNewSimplerErrors) 
@@ -502,7 +516,7 @@ PixelCPEBase::driftDirection(DetParam & theDetParam, LocalVector Bfield ) const 
     } else if(useLAWidthFromConfig_) { // get from config 
       
       double lAWidth=0;
-      if( theDetParam.thePart == GeomDetEnumerators::PixelBarrel) lAWidth = lAWidthBPix_; // barrel
+      if( GeomDetEnumerators::isTrackerPixel(theDetParam.thePart) && GeomDetEnumerators::isBarrel(theDetParam.thePart) ) lAWidth = lAWidthBPix_; // barrel
       else lAWidth = lAWidthFPix_;
       
       if(langle!=0.0) theDetParam.widthLAFractionX = std::abs(lAWidth/langle);

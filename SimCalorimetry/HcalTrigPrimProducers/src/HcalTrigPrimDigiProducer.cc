@@ -28,11 +28,13 @@ HcalTrigPrimDigiProducer::HcalTrigPrimDigiProducer(const edm::ParameterSet& ps)
 	  ps.getParameter<std::vector<double> >("weights"),
 	  ps.getParameter<int>("latency"),
 	  ps.getParameter<uint32_t>("FG_threshold"),
-      ps.getParameter<uint32_t>("ZS_threshold"),
+          ps.getParameter<uint32_t>("ZS_threshold"),
 	  ps.getParameter<int>("numberOfSamples"),
 	  ps.getParameter<int>("numberOfPresamples"),
-      ps.getParameter<uint32_t>("MinSignalThreshold"),
-      ps.getParameter<uint32_t>("PMTNoiseThreshold")
+	  ps.getParameter<int>("numberOfSamplesHF"),
+	  ps.getParameter<int>("numberOfPresamplesHF"),
+	  ps.getParameter<uint32_t>("MinSignalThreshold"),
+	  ps.getParameter<uint32_t>("PMTNoiseThreshold")
    ),
   inputLabel_(ps.getParameter<std::vector<edm::InputTag> >("inputLabel")),
   inputTagFEDRaw_(ps.getParameter<edm::InputTag> ("InputTagFEDRaw")),
@@ -40,7 +42,9 @@ HcalTrigPrimDigiProducer::HcalTrigPrimDigiProducer(const edm::ParameterSet& ps)
   runFrontEndFormatError_(ps.getParameter<bool>("FrontEndFormatError"))
 {
   // register for data access
-  tok_raw_ = consumes<FEDRawDataCollection>(inputTagFEDRaw_);
+  if (runFrontEndFormatError_) {
+    tok_raw_ = consumes<FEDRawDataCollection>(inputTagFEDRaw_);
+  }
   tok_hbhe_ = consumes<HBHEDigiCollection>(inputLabel_[0]);
   tok_hf_ = consumes<HFDigiCollection>(inputLabel_[1]);
 
@@ -57,7 +61,6 @@ void HcalTrigPrimDigiProducer::produce(edm::Event& iEvent, const edm::EventSetup
 
   edm::ESHandle<CaloTPGTranscoder> outTranscoder;
   eventSetup.get<CaloTPGRecord>().get(outTranscoder);
-  outTranscoder->setup(eventSetup,CaloTPGTranscoder::HcalTPG);
 
   edm::ESHandle<HcalLutMetadata> lutMetadata;
   eventSetup.get<HcalLutMetadataRcd>().get(lutMetadata);
@@ -88,8 +91,6 @@ void HcalTrigPrimDigiProducer::produce(edm::Event& iEvent, const edm::EventSetup
       // put empty HcalTrigPrimDigiCollection in the event
       iEvent.put(result);
 
-      outTranscoder->releaseSetup();
-
       return;
   }
 
@@ -102,8 +103,6 @@ void HcalTrigPrimDigiProducer::produce(edm::Event& iEvent, const edm::EventSetup
 
       // put empty HcalTrigPrimDigiCollection in the event
       iEvent.put(result);
-
-      outTranscoder->releaseSetup();
 
       return;
   }
@@ -138,8 +137,6 @@ void HcalTrigPrimDigiProducer::produce(edm::Event& iEvent, const edm::EventSetup
 
             iEvent.put(emptyResult);
 
-            outTranscoder->releaseSetup();
-
             return;
         }
 
@@ -151,8 +148,6 @@ void HcalTrigPrimDigiProducer::produce(edm::Event& iEvent, const edm::EventSetup
 
   // Step D: Put outputs into event
   iEvent.put(result);
-
-  outTranscoder->releaseSetup();
 }
 
 

@@ -41,19 +41,19 @@ event.getByLabel("market", "apple", fruits);
 Putting Data
 
 \code
-std::auto_ptr<AppleCollection> pApples(new AppleCollection);
+std::unique_ptr<AppleCollection> pApples(new AppleCollection);
   
 //fill the collection
 ...
-event.put(pApples);
+event.put(std::move(pApples));
 \endcode
 
 \code
-std::auto_ptr<FruitCollection> pFruits(new FruitCollection);
+std::unique_ptr<FruitCollection> pFruits(new FruitCollection);
 
 //fill the collection
 ...
-event.put("apple", pFruits);
+event.put("apple", std::move(pFruits));
 \endcode
 
 
@@ -63,7 +63,7 @@ NOTE: The edm::RefProd returned will not work until after the
 edm::PrincipalGetAdapter has been committed (which happens after the
 EDProducer::produce method has ended)
 \code
-std::auto_ptr<AppleCollection> pApples(new AppleCollection);
+std::unique_ptr<AppleCollection> pApples(new AppleCollection);
 
 edm::RefProd<AppleCollection> refApples = event.getRefBeforePut<AppleCollection>();
 
@@ -86,6 +86,7 @@ edm::Ref<AppleCollection> ref(refApples, index);
 #include <typeinfo>
 #include <string>
 #include <vector>
+#include <boost/type_traits.hpp>
 
 #include "DataFormats/Common/interface/EDProductfwd.h"
 #include "DataFormats/Provenance/interface/ProvenanceFwd.h"
@@ -104,11 +105,13 @@ edm::Ref<AppleCollection> ref(refApples, index);
 #include "FWCore/Utilities/interface/InputTag.h"
 #include "FWCore/Utilities/interface/EDGetToken.h"
 #include "FWCore/Utilities/interface/ProductKindOfType.h"
+#include "FWCore/Utilities/interface/ProductLabels.h"
 
 
 namespace edm {
 
   class ModuleCallingContext;
+  class SharedResourcesAcquirer;
 
   namespace principal_get_adapter_detail {
     void
@@ -137,6 +140,11 @@ namespace edm {
     void setConsumer(EDConsumerBase const* iConsumer) {
       consumer_ = iConsumer;
     }
+    
+    void setSharedResourcesAcquirer(SharedResourcesAcquirer* iSra) {
+      resourcesAcquirer_ = iSra;
+    }
+
 
     bool isComplete() const;
 
@@ -202,6 +210,8 @@ namespace edm {
     // from the Principal class.
     EDProductGetter const* prodGetter() const;
 
+    void labelsForToken(EDGetToken const& iToken, ProductLabels& oLabels) const;
+
   private:
     // Is this an Event, a LuminosityBlock, or a Run.
     BranchType const& branchType() const;
@@ -226,7 +236,7 @@ namespace edm {
     ModuleDescription const& md_;
     
     EDConsumerBase const* consumer_;
-
+    SharedResourcesAcquirer* resourcesAcquirer_;
   };
 
   template <typename PROD>

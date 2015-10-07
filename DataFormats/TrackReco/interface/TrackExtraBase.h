@@ -23,40 +23,61 @@ class TrackExtraBase
 
 public:
     /// default constructor
-    TrackExtraBase() { }
+    TrackExtraBase() : m_firstHit(-1), m_nHits(0) { }
 
-    /// add a reference to a RecHit
-    void add(const TrackingRecHitRef &r) {
-        recHits_.push_back(r);
+    void setHits(TrackingRecHitRefProd const & prod, unsigned firstH, unsigned int nH) {
+        m_hitCollection.pushBackItem(prod.refCore(),true);
+        m_firstHit =firstH;  m_nHits=nH;
     }
+
+    unsigned int firstRecHit() const {
+      return m_firstHit;
+    }
+
+    /// number of RecHits
+    unsigned int recHitsSize() const {
+        return m_nHits;
+    }
+
 
     /// first iterator over RecHits
     trackingRecHit_iterator recHitsBegin() const {
-        return recHits_.begin();
+        return recHitsProduct().data().begin()+firstRecHit();
     }
 
     /// last iterator over RecHits
     trackingRecHit_iterator recHitsEnd() const {
-        return recHits_.end();
+        return recHitsBegin()+recHitsSize();
     }
 
-    /// number of RecHits
-    size_t recHitsSize() const {
-        return recHits_.size();
+    /// get a ref to i-th recHit
+    TrackingRecHitRef recHitRef(unsigned int i) const {
+      //Another thread might change the RefCore at the same time.
+      // By using a copy we will be safe.
+      edm::RefCore hitCollection( m_hitCollection);
+      if(hitCollection.productPtr()) {
+        TrackingRecHitRef::finder_type finder;
+        TrackingRecHitRef::value_type const* item = finder(*(static_cast<TrackingRecHitRef::product_type const*>(hitCollection.productPtr())), m_firstHit+i);
+        return TrackingRecHitRef(hitCollection.id(), item, m_firstHit+i);
+      }
+      return TrackingRecHitRef(hitCollection,m_firstHit+i);
     }
 
     /// get i-th recHit
-    TrackingRecHitRef recHit(size_t i) const {
-        return recHits_[i];
+    TrackingRecHitRef recHit(unsigned int i) const {
+        return recHitRef(i);
     }
 
-    TrackingRecHitRefVector recHits() const {
-        return recHits_;
+    TrackingRecHitCollection const & recHitsProduct() const {
+      return *edm::getProduct<TrackingRecHitCollection>(m_hitCollection);
+
     }
 
 private:
-    /// references to the hit assigned to the track.
-    TrackingRecHitRefVector recHits_;
+
+    edm::RefCore m_hitCollection;
+    unsigned int m_firstHit;
+    unsigned int m_nHits;
 
 };
 

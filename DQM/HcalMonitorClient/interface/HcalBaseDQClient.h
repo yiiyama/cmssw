@@ -8,6 +8,7 @@
 #include "DQM/HcalMonitorTasks/interface/HcalEtaPhiHists.h"
 #include "DQM/HcalMonitorClient/interface/HcalHistoUtils.h"
 #include "FWCore/ServiceRegistry/interface/Service.h"
+#include "Geometry/CaloTopology/interface/HcalTopology.h"
 
 class HcalLogicalMap;
 
@@ -28,14 +29,13 @@ class HcalBaseDQClient
   virtual ~HcalBaseDQClient(void);
   
   // Overload these functions with client-specific instructions
-  virtual void beginJob(void);
   virtual void beginRun(void)          {}
   virtual void setup(void)             {}
 
-  virtual void analyze(void)           {enoughevents_=true;} // fill new histograms
+  virtual void analyze(DQMStore::IBooker &, DQMStore::IGetter &)           {enoughevents_=true;} // fill new histograms
   virtual void calculateProblems(void) {} // update/fill ProblemCell histograms
   
-  virtual void endRun(void)            {}
+  //virtual void endRun(void)            {}
   virtual void endJob(void)            {}
   virtual void cleanup(void)           {}
   
@@ -44,17 +44,21 @@ class HcalBaseDQClient
   virtual bool hasOther_Temp(void)     {return false;};
   virtual bool test_enabled(void)      {return false;};
 
-  virtual void htmlOutput(std::string htmlDir);
+  virtual void htmlOutput(DQMStore::IBooker &, DQMStore::IGetter &, std::string htmlDir);
   virtual void setStatusMap(std::map<HcalDetId, unsigned int>& map);
   virtual void updateChannelStatus(std::map<HcalDetId, unsigned int>& myqual){};     
   
-  virtual bool validHtmlOutput();
+  virtual bool validHtmlOutput(DQMStore::IBooker &, DQMStore::IGetter &);
 
   void getLogicalMap(const edm::EventSetup& es);
 
   inline void setEventSetup(const edm::EventSetup& es) 
     { c = &(es);  }
   const edm::EventSetup *c;
+
+  inline void setTopo(const HcalTopology* topo) { topo_ = topo;}
+  const HcalTopology* topo_;
+
   std::string name(){return name_;};
   // make these private, with public accessors, at some point?
   std::string name_;
@@ -78,7 +82,6 @@ class HcalBaseDQClient
   std::vector<std::string> problemnames_;
 
   std::map<HcalDetId, unsigned int> badstatusmap;
-  DQMStore* dqmStore_;
   bool enoughevents_;
 
   bool needLogicalMap_;

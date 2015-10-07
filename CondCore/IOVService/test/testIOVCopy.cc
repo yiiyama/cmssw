@@ -6,7 +6,7 @@
 #include "CondCore/DBCommon/interface/DbTransaction.h"
 #include "CondCore/DBCommon/interface/Exception.h"
 #include "CondCore/IOVService/interface/IOVEditor.h"
-#include "testPayloadObj.h"
+#include "CondCore/IOVService/test/testPayloadObj.h"
 #include <iostream>
 
 int main(){
@@ -17,7 +17,7 @@ int main(){
     std::string sourceConnect("sqlite_file:source.db");
     std::string destConnect("sqlite_file:dest.db");
     cond::DbConnection connection;
-    connection.configuration().setMessageLevel(coral::Debug);
+    //connection.configuration().setMessageLevel(coral::Debug);
     connection.configure();
     cond::DbSession sourcedb = connection.createSession();
     sourcedb.open("sqlite_file:source.db");
@@ -59,7 +59,10 @@ int main(){
     std::cout<<"editor deleted"<<std::endl;
   }catch(const cond::Exception& er){
     std::cout<<"error "<<er.what()<<std::endl;
+    return -1;
   }catch(const std::exception& er){
     std::cout<<"std error "<<er.what()<<std::endl;
+    return -1;
   }
+  return 0;
 }

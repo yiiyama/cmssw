@@ -11,6 +11,7 @@
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
 #include "FWCore/ServiceRegistry/interface/Service.h"
 #include "DataFormats/Provenance/interface/BranchDescription.h"
+#include "DataFormats/Provenance/interface/ParentageRegistry.h"
 #include "FWCore/Utilities/interface/Algorithms.h"
 #include "FWCore/Utilities/interface/EDMException.h"
 #include "FWCore/Utilities/interface/DictionaryTools.h"
@@ -56,6 +57,8 @@ namespace edm {
     inputFileCount_(0),
     childIndex_(0U),
     numberOfDigitsInIndex_(0U),
+    branchParents_(),
+    branchChildren_(),
     overrideInputFileSplitLevels_(pset.getUntrackedParameter<bool>("overrideInputFileSplitLevels")),
     rootOutputFile_(),
     statusFileName_() {
@@ -92,10 +95,8 @@ namespace edm {
     for(int i = InEvent; i < NumBranchTypes; ++i) {
       BranchType branchType = static_cast<BranchType>(i);
       SelectedProducts const& keptVector = keptProducts()[branchType];
-      for(SelectedProducts::const_iterator it = keptVector.begin(), itEnd = keptVector.end(); it != itEnd; ++it) {
-        BranchDescription const& prod = **it;
-        checkDictionaries(prod.fullClassName(), true);
-        checkDictionaries(wrappedClassName(prod.fullClassName()), true);
+      for(auto const& prod : keptVector) {
+        checkClassDictionaries(TypeID(prod->wrappedType().typeInfo()), false);
       }
     }
   }
@@ -240,6 +241,7 @@ namespace edm {
   }
 
   void PoolOutputModule::write(EventPrincipal const& e, ModuleCallingContext const* mcc) {
+    updateBranchParents(e);
     rootOutputFile_->writeOne(e, mcc);
       if (!statusFileName_.empty()) {
         std::ofstream statusFile(statusFileName_.c_str());
@@ -257,6 +259,9 @@ namespace edm {
   }
 
   void PoolOutputModule::reallyCloseFile() {
+    fillDependencyGraph();
+    branchParents_.clear();
+    branchChildren_.clear();
     startEndFile();
     writeFileFormatVersion();
     writeFileIdentifier();
@@ -266,14 +271,16 @@ namespace edm {
     writeProductDescriptionRegistry();
     writeParentageRegistry();
     writeBranchIDListRegistry();
+    writeThinnedAssociationsHelper();
     writeProductDependencies();
     finishEndFile();
+
+    doExtrasAfterCloseFile();
   }
 
   
   // At some later date, we may move functionality from finishEndFile() to here.
   void PoolOutputModule::startEndFile() { }
-
 
   void PoolOutputModule::writeFileFormatVersion() { rootOutputFile_->writeFileFormatVersion(); }
   void PoolOutputModule::writeFileIdentifier() { rootOutputFile_->writeFileIdentifier(); }
@@ -283,12 +290,15 @@ namespace edm {
   void PoolOutputModule::writeProductDescriptionRegistry() { rootOutputFile_->writeProductDescriptionRegistry(); }
   void PoolOutputModule::writeParentageRegistry() { rootOutputFile_->writeParentageRegistry(); }
   void PoolOutputModule::writeBranchIDListRegistry() { rootOutputFile_->writeBranchIDListRegistry(); }
+  void PoolOutputModule::writeThinnedAssociationsHelper() { rootOutputFile_->writeThinnedAssociationsHelper(); }
   void PoolOutputModule::writeProductDependencies() { rootOutputFile_->writeProductDependencies(); }
   void PoolOutputModule::finishEndFile() { rootOutputFile_->finishEndFile(); rootOutputFile_.reset(); }
+  void PoolOutputModule::doExtrasAfterCloseFile() {}
   bool PoolOutputModule::isFileOpen() const { return rootOutputFile_.get() != 0; }
   bool PoolOutputModule::shouldWeCloseFile() const { return rootOutputFile_->shouldWeCloseFile(); }
 
-  void PoolOutputModule::reallyOpenFile() {
+  std::pair<std::string, std::string>
+  PoolOutputModule::physicalAndLogicalNameForNewFile() {
       if(inputFileCount_ == 0) {
         throw edm::Exception(errors::LogicError)
           << "Attempt to open output file before input file. "
@@ -316,14 +326,54 @@ namespace edm {
         }
       }
       ofilename << suffix;
-      rootOutputFile_.reset(new RootOutputFile(this, ofilename.str(), lfilename.str()));
       ++outputFileCount_;
+
+      return std::make_pair(ofilename.str(), lfilename.str());
+  }
+
+  void PoolOutputModule::reallyOpenFile() {
+    auto names = physicalAndLogicalNameForNewFile();
+    rootOutputFile_.reset( new RootOutputFile(this, names.first, names.second));
   }
 
   void
-  PoolOutputModule::fillDescriptions(ConfigurationDescriptions & descriptions) {
+  PoolOutputModule::updateBranchParents(EventPrincipal const& ep) {
+    for(EventPrincipal::const_iterator i = ep.begin(), iEnd = ep.end(); i != iEnd; ++i) {
+      if((*i) && (*i)->productProvenancePtr() != 0) {
+        BranchID const& bid = (*i)->branchDescription().branchID();
+        BranchParents::iterator it = branchParents_.find(bid);
+        if(it == branchParents_.end()) {
+          it = branchParents_.insert(std::make_pair(bid, std::set<ParentageID>())).first;
+        }
+        it->second.insert((*i)->productProvenancePtr()->parentageID());
+        branchChildren_.insertEmpty(bid);
+      }
+    }
+  }
+
+  void
+  PoolOutputModule::fillDependencyGraph() {
+    for(BranchParents::const_iterator i = branchParents_.begin(), iEnd = branchParents_.end();
+        i != iEnd; ++i) {
+      BranchID const& child = i->first;
+      std::set<ParentageID> const& eIds = i->second;
+      for(std::set<ParentageID>::const_iterator it = eIds.begin(), itEnd = eIds.end();
+          it != itEnd; ++it) {
+        Parentage entryDesc;
+        ParentageRegistry::instance()->getMapped(*it, entryDesc);
+        std::vector<BranchID> const& parents = entryDesc.parents();
+        for(std::vector<BranchID>::const_iterator j = parents.begin(), jEnd = parents.end();
+          j != jEnd; ++j) {
+          branchChildren_.insertChild(*j, child);
+        }
+      }
+    }
+  }
+
+  void
+  PoolOutputModule::fillDescription(ParameterSetDescription& desc) {
     std::string defaultString;
-    ParameterSetDescription desc;
+
     desc.setComment("Writes runs, lumis, and events into EDM/ROOT files.");
     desc.addUntracked<std::string>("fileName")
         ->setComment("Name of output file.");
@@ -370,7 +420,12 @@ namespace edm {
      ->setComment("PSet is only used by Data Operations and not by this module.");
 
     OutputModule::fillDescription(desc);
+  }
 
+  void
+  PoolOutputModule::fillDescriptions(ConfigurationDescriptions & descriptions) {
+    ParameterSetDescription desc;
+    PoolOutputModule::fillDescription(desc);
     descriptions.add("edmOutput", desc);
   }
 }

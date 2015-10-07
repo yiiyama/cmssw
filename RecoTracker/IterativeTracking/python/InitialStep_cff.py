@@ -32,17 +32,26 @@ initialStepSeeds.OrderedHitsFactoryPSet.GeneratorPSet.SeedComparitorPSet = RecoP
 
 # building
 import TrackingTools.TrajectoryFiltering.TrajectoryFilter_cff
-initialStepTrajectoryFilter = TrackingTools.TrajectoryFiltering.TrajectoryFilter_cff.CkfBaseTrajectoryFilter_block.clone(
+initialStepTrajectoryFilterBase = TrackingTools.TrajectoryFiltering.TrajectoryFilter_cff.CkfBaseTrajectoryFilter_block.clone(
     minimumNumberOfHits = 3,
     minPt = 0.2
     )
+import RecoPixelVertexing.PixelLowPtUtilities.StripSubClusterShapeTrajectoryFilter_cfi
+initialStepTrajectoryFilterShape = RecoPixelVertexing.PixelLowPtUtilities.StripSubClusterShapeTrajectoryFilter_cfi.StripSubClusterShapeTrajectoryFilterTIX12.clone()
+initialStepTrajectoryFilter = cms.PSet(
+    ComponentType = cms.string('CompositeTrajectoryFilter'),
+    filters = cms.VPSet(
+        cms.PSet( refToPSet_ = cms.string('initialStepTrajectoryFilterBase')),
+    #    cms.PSet( refToPSet_ = cms.string('initialStepTrajectoryFilterShape'))
+    ),
+)
 
-import TrackingTools.KalmanUpdators.Chi2ChargeMeasurementEstimatorESProducer_cfi
-initialStepChi2Est = TrackingTools.KalmanUpdators.Chi2ChargeMeasurementEstimatorESProducer_cfi.Chi2ChargeMeasurementEstimator.clone(
+import RecoTracker.MeasurementDet.Chi2ChargeMeasurementEstimatorESProducer_cfi
+initialStepChi2Est = RecoTracker.MeasurementDet.Chi2ChargeMeasurementEstimatorESProducer_cfi.Chi2ChargeMeasurementEstimator.clone(
     ComponentName = cms.string('initialStepChi2Est'),
     nSigma = cms.double(3.0),
     MaxChi2 = cms.double(30.0),
-    minGoodStripCharge = cms.double(1724),
+    clusterChargeCut = cms.PSet(refToPSet_ = cms.string('SiStripClusterChargeCutLoose')),
     pTChargeCutThreshold = cms.double(15.)
 )
 
@@ -71,60 +80,55 @@ initialStepTrackCandidates = RecoTracker.CkfPattern.CkfTrackCandidates_cfi.ckfTr
 import RecoTracker.TrackProducer.TrackProducer_cfi
 initialStepTracks = RecoTracker.TrackProducer.TrackProducer_cfi.TrackProducer.clone(
     src = 'initialStepTrackCandidates',
-    AlgorithmName = cms.string('iter0'),
+    AlgorithmName = cms.string('initialStep'),
     Fitter = cms.string('FlexibleKFFittingSmoother')
     )
 
-# Final selection
-import RecoTracker.FinalTrackSelectors.multiTrackSelector_cfi
-from RecoTracker.IterativeTracking.DetachedTripletStep_cff import detachedTripletStepSelector
-initialStepSelector = RecoTracker.FinalTrackSelectors.multiTrackSelector_cfi.multiTrackSelector.clone(
-    src='initialStepTracks',
-    useAnyMVA = cms.bool(True),
-    GBRForestLabel = cms.string('MVASelectorIter0_13TeV_v0'),
-    trackSelectors= cms.VPSet(
-    RecoTracker.FinalTrackSelectors.multiTrackSelector_cfi.looseMTS.clone(
-        name = 'initialStepLoose',
-        ), #end of pset
-    RecoTracker.FinalTrackSelectors.multiTrackSelector_cfi.tightMTS.clone(
-        name = 'initialStepTight',
-        preFilterName = 'initialStepLoose',
-        ),
-    RecoTracker.FinalTrackSelectors.multiTrackSelector_cfi.highpurityMTS.clone(
-        name = 'initialStepV1',
-        preFilterName = 'initialStepTight',
-        ),
-    detachedTripletStepSelector.trackSelectors[4].clone(
-        name = 'initialStepV2',
-        preFilterName=cms.string(''),
-        keepAllTracks = cms.bool(False)
-        ),
-    detachedTripletStepSelector.trackSelectors[5].clone(
-        name = 'initialStepV3',
-        preFilterName=cms.string(''),
-        keepAllTracks = cms.bool(False)
-        )
-    ) #end of vpset
-)#end of clone
-import RecoTracker.FinalTrackSelectors.trackListMerger_cfi
-initialStep = RecoTracker.FinalTrackSelectors.trackListMerger_cfi.trackListMerger.clone(
-    TrackProducers = cms.VInputTag(cms.InputTag('initialStepTracks'),
-                                   cms.InputTag('initialStepTracks'),
-                                   cms.InputTag('initialStepTracks')),
-    hasSelector=cms.vint32(1,1,1),
-    shareFrac = cms.double(0.99),
-    indivShareFrac=cms.vdouble(1.0,1.0,1.0),
-    selectedTrackQuals = cms.VInputTag(cms.InputTag("initialStepSelector","initialStepV1"),
-                                       cms.InputTag("initialStepSelector","initialStepV2"),
-                                       cms.InputTag("initialStepSelector","initialStepV3")),
-    setsToMerge = cms.VPSet(cms.PSet( tLists=cms.vint32(0,1,2), pQual=cms.bool(True) )),
-    writeOnlyTrkQuals=cms.bool(True)
+
+#vertices
+import RecoVertex.PrimaryVertexProducer.OfflinePrimaryVertices_cfi
+firstStepPrimaryVertices=RecoVertex.PrimaryVertexProducer.OfflinePrimaryVertices_cfi.offlinePrimaryVertices.clone()
+firstStepPrimaryVertices.TrackLabel = cms.InputTag("initialStepTracks")
+firstStepPrimaryVertices.vertexCollections = cms.VPSet(
+     [cms.PSet(label=cms.string(""),
+               algorithm=cms.string("AdaptiveVertexFitter"),
+               minNdof=cms.double(0.0),
+               useBeamConstraint = cms.bool(False),
+               maxDistanceToBeam = cms.double(1.0)
+               )
+      ]
     )
+ 
+
+# Final selection
+from RecoTracker.FinalTrackSelectors.TrackMVAClassifierPrompt_cfi import *
+from RecoTracker.FinalTrackSelectors.TrackMVAClassifierDetached_cfi import *
+
+initialStepClassifier1 = TrackMVAClassifierPrompt.clone()
+initialStepClassifier1.src = 'initialStepTracks'
+initialStepClassifier1.GBRForestLabel = 'MVASelectorIter0_13TeV'
+initialStepClassifier1.qualityCuts = [-0.9,-0.8,-0.7]
+
+from RecoTracker.IterativeTracking.DetachedTripletStep_cff import detachedTripletStepClassifier1
+from RecoTracker.IterativeTracking.LowPtTripletStep_cff import lowPtTripletStep
+initialStepClassifier2 = detachedTripletStepClassifier1.clone()
+initialStepClassifier2.src = 'initialStepTracks'
+initialStepClassifier3 = lowPtTripletStep.clone()
+initialStepClassifier3.src = 'initialStepTracks'
+
+
+
+from RecoTracker.FinalTrackSelectors.ClassifierMerger_cfi import *
+initialStep = ClassifierMerger.clone()
+initialStep.inputClassifiers=['initialStepClassifier1','initialStepClassifier2','initialStepClassifier3']
+
+
 
 # Final sequence
 InitialStep = cms.Sequence(initialStepSeedLayers*
                            initialStepSeeds*
                            initialStepTrackCandidates*
                            initialStepTracks*
-                           initialStepSelector*
+                           firstStepPrimaryVertices*
+                           initialStepClassifier1*initialStepClassifier2*initialStepClassifier3*
                            initialStep)

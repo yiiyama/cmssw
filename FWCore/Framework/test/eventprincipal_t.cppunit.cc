@@ -19,6 +19,7 @@ Test of the EventPrincipal class.
 #include "DataFormats/Provenance/interface/Timestamp.h"
 #include "DataFormats/Provenance/interface/ProductProvenance.h"
 #include "DataFormats/Provenance/interface/RunAuxiliary.h"
+#include "DataFormats/Provenance/interface/ThinnedAssociationsHelper.h"
 #include "DataFormats/TestObjects/interface/ToyProducts.h"
 #include "FWCore/Common/interface/Provenance.h"
 #include "FWCore/Framework/interface/EventPrincipal.h"
@@ -26,7 +27,6 @@ Test of the EventPrincipal class.
 #include "FWCore/Framework/interface/RunPrincipal.h"
 #include "FWCore/Framework/interface/HistoryAppender.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
-#include "FWCore/RootAutoLibraryLoader/interface/RootAutoLibraryLoader.h"
 #include "FWCore/Utilities/interface/EDMException.h"
 #include "FWCore/Utilities/interface/GetPassID.h"
 #include "FWCore/Utilities/interface/GlobalIdentifier.h"
@@ -139,8 +139,6 @@ test_ep::fake_single_process_branch(std::string const& tag,
 
 void test_ep::setUp() {
 
-  edm::RootAutoLibraryLoader::enable();
-
   // Making a functional EventPrincipal is not trivial, so we do it
   // all here.
   eventID_ = edm::EventID(101, 1, 20);
@@ -155,6 +153,7 @@ void test_ep::setUp() {
   pProductRegistry_->setFrozen();
   auto branchIDListHelper = std::make_shared<edm::BranchIDListHelper>();
   branchIDListHelper->updateFromRegistry(*pProductRegistry_);
+  auto thinnedAssociationsHelper = std::make_shared<edm::ThinnedAssociationsHelper>();
 
   // Put products we'll look for into the EventPrincipal.
   {
@@ -189,7 +188,7 @@ void test_ep::setUp() {
     auto lbp = std::make_shared<edm::LuminosityBlockPrincipal>(lumiAux, pProductRegistry_, *process, &historyAppender_,0);
     lbp->setRunPrincipal(rp);
     edm::EventAuxiliary eventAux(eventID_, uuid, now, true);
-    pEvent_.reset(new edm::EventPrincipal(pProductRegistry_, branchIDListHelper, *process, &historyAppender_,edm::StreamID::invalidStreamID()));
+    pEvent_.reset(new edm::EventPrincipal(pProductRegistry_, branchIDListHelper, thinnedAssociationsHelper, *process, &historyAppender_,edm::StreamID::invalidStreamID()));
     edm::ProcessHistoryRegistry phr;
     pEvent_->fillEventPrincipal(eventAux, phr);
     pEvent_->setLuminosityBlockPrincipal(lbp);
@@ -234,7 +233,7 @@ void test_ep::failgetbyLabelTest() {
 
   std::string label("this does not exist");
 
-  edm::BasicHandle h(pEvent_->getByLabel(edm::PRODUCT_TYPE, tid, label, std::string(), std::string(), nullptr, nullptr));
+  edm::BasicHandle h(pEvent_->getByLabel(edm::PRODUCT_TYPE, tid, label, std::string(), std::string(), nullptr, nullptr, nullptr));
   CPPUNIT_ASSERT(h.failedToGet());
 }
 
@@ -243,7 +242,7 @@ void test_ep::failgetManybyTypeTest() {
   edm::TypeID tid(dummy);
   std::vector<edm::BasicHandle > handles;
 
-  pEvent_->getManyByType(tid, handles, nullptr, nullptr);
+  pEvent_->getManyByType(tid, handles, nullptr, nullptr, nullptr);
   CPPUNIT_ASSERT(handles.empty());
 }
 

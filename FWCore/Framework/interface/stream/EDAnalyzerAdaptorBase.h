@@ -19,6 +19,8 @@
 //
 
 // system include files
+#include <map>
+#include <string>
 #include <vector>
 
 // user include files
@@ -27,6 +29,7 @@
 #include "FWCore/Framework/interface/Frameworkfwd.h"
 #include "DataFormats/Provenance/interface/ModuleDescription.h"
 #include "FWCore/ParameterSet/interface/ParameterSetfwd.h"
+#include "FWCore/ServiceRegistry/interface/ConsumesInfo.h"
 #include "FWCore/Utilities/interface/StreamID.h"
 #include "FWCore/Utilities/interface/RunIndex.h"
 #include "FWCore/Utilities/interface/LuminosityBlockIndex.h"
@@ -41,6 +44,8 @@ namespace edm {
   class PreallocationConfiguration;
   class ProductHolderIndexAndSkipBit;
   class ActivityRegistry;
+  class ProductRegistry;
+  class ThinnedAssociationsHelper;
 
   namespace maker {
     template<typename T> class ModuleHolderT;
@@ -73,6 +78,7 @@ namespace edm {
       template<typename T> void createStreamModules(T iFunc) {
         for(auto& m: m_streamModules) {
           m = iFunc();
+          setModuleDescriptionPtr(m);
         }
       }
       
@@ -88,6 +94,14 @@ namespace edm {
       
       void modulesDependentUpon(const std::string& iProcessName,
                                 std::vector<const char*>& oModuleLabels) const;
+
+      void modulesWhoseProductsAreConsumed(std::vector<ModuleDescription const*>& modules,
+                                           ProductRegistry const& preg,
+                                           std::map<std::string, ModuleDescription const*> const& labelsToDesc,
+                                           std::string const& processName) const;
+
+      std::vector<ConsumesInfo> consumesInfo() const;
+
     private:
       EDAnalyzerAdaptorBase(const EDAnalyzerAdaptorBase&); // stop default
       
@@ -135,13 +149,17 @@ namespace edm {
       virtual void doEndLuminosityBlock(LuminosityBlockPrincipal& lbp, EventSetup const& c,
                                         ModuleCallingContext const*)=0;
 
-      //For now, the following are just dummy implemenations with no ability for users to override
-      void doRespondToOpenInputFile(FileBlock const& fb);
-      void doRespondToCloseInputFile(FileBlock const& fb);
       void doPreForkReleaseResources();
       void doPostForkReacquireResources(unsigned int iChildIndex, unsigned int iNumberOfChildren);
 
+      //For now, the following are just dummy implemenations with no ability for users to override
+      void doRespondToOpenInputFile(FileBlock const& fb);
+      void doRespondToCloseInputFile(FileBlock const& fb);
+      void doRegisterThinnedAssociations(ProductRegistry const&,
+                                         ThinnedAssociationsHelper&) { }
+
       // ---------- member data --------------------------------
+      void setModuleDescriptionPtr(EDAnalyzerBase* m);
       void setModuleDescription(ModuleDescription const& md) {
         moduleDescription_ = md;
       }

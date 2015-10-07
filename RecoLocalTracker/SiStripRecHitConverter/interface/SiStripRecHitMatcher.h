@@ -135,8 +135,11 @@ public:
 #ifdef DOUBLE_MATCH
 
 #if defined(USE_SSEVECT)
-#include "SSEMatcher.h"
-#else // ext vect version
+  using  mathSSE::Vec3F;
+  using  mathSSE::Vec2D;
+  using  mathSSE::Vec3D;
+  using  mathSSE::Rot3F;
+#endif 
  
 #include "Geometry/TrackerGeometryBuilder/interface/GluedGeomDet.h"
 #include "TrackingTools/TransientTrackingRecHit/interface/HelpertRecHit2DLocalPos.h"
@@ -182,7 +185,7 @@ void SiStripRecHitMatcher::doubleMatch(MonoIterator monoRHiter, MonoIterator mon
   
   
   
-  StereoInfo cache[std::distance(seconditer,seconditerend)];
+  std::vector<StereoInfo> cache(std::distance(seconditer,seconditerend));
   //iterate on stereo rechits
   // fill cache with relevant info
   int  cacheSize=0;
@@ -346,7 +349,6 @@ void SiStripRecHitMatcher::doubleMatch(MonoIterator monoRHiter, MonoIterator mon
   } // loop on mono hit
   
 }
-#endif // SSE or EXT
 
 #endif //DOUBLE_MATCH
 

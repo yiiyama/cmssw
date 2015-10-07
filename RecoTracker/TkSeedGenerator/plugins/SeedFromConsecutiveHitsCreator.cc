@@ -41,15 +41,9 @@ void SeedFromConsecutiveHitsCreator::init(const TrackingRegion & iregion,
   isBOFF = (0==nomField);
 
   edm::ESHandle<TransientTrackingRecHitBuilder> builderH;
-  try { // one sure we need to propagate the ocnfig to HLT
-    es.get<TransientRecHitRecord>().get(TTRHBuilder, builderH);
-    auto builder = (TkTransientTrackingRecHitBuilder const *)(builderH.product());
-    cloner = (*builder).cloner();
-  } catch(...) {
-    es.get<TransientRecHitRecord>().get("hltESPTTRHBWithTrackAngle", builderH);
-    auto builder = (TkTransientTrackingRecHitBuilder const *)(builderH.product());
-    cloner = (*builder).cloner();
- }
+  es.get<TransientRecHitRecord>().get(TTRHBuilder, builderH);
+  auto builder = (TkTransientTrackingRecHitBuilder const *)(builderH.product());
+  cloner = (*builder).cloner();
 
 }
 
@@ -188,6 +182,7 @@ void SeedFromConsecutiveHitsCreator::buildSeed(
 
   } 
 
+  if(!hit) return;
   
   PTrajectoryStateOnDet const & PTraj = 
     trajectoryStateTransform::persistentState(updatedState, hit->geographicalId().rawId());

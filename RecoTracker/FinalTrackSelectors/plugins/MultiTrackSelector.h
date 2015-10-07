@@ -15,7 +15,7 @@
 #include <memory>
 #include <algorithm>
 #include <map>
-#include "FWCore/Framework/interface/global/EDProducer.h"
+#include "FWCore/Framework/interface/stream/EDProducer.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/Utilities/interface/InputTag.h"
@@ -32,7 +32,7 @@
 #include "CommonTools/Utils/interface/StringCutObjectSelector.h"
 #include "CondFormats/EgammaObjects/interface/GBRForest.h"
 
-    class dso_hidden MultiTrackSelector : public edm::global::EDProducer<> {
+    class dso_hidden MultiTrackSelector : public edm::stream::EDProducer<> {
         private:
         public:
             /// constructor 
@@ -41,8 +41,12 @@
             /// destructor
             virtual ~MultiTrackSelector() ;
 
+           using MVACollection = std::vector<float>;
+           using QualityMaskCollection = std::vector<unsigned char>;
+
+
         protected:
-            void beginJob() final;
+            void beginStream(edm::StreamID) override final;
  
             // void streamBeginRun(edm::StreamID, edm::Run const&, edm::EventSetup const&) const final {
             //  init();
@@ -52,14 +56,15 @@
 
             typedef math::XYZPoint Point;
             /// process one event
-            void produce(edm::StreamID, edm::Event& evt, const edm::EventSetup& es ) const final {
+            void produce(edm::Event& evt, const edm::EventSetup& es ) override final {
                run(evt,es);
             }
             virtual void run( edm::Event& evt, const edm::EventSetup& es ) const;
 
             /// return class, or -1 if rejected
             bool select (unsigned tsNum,
-			 const reco::BeamSpot &vertexBeamSpot, 
+			 const reco::BeamSpot &vertexBeamSpot,
+                         const TrackingRecHitCollection & recHits,
 			 const reco::Track &tk, 
 			 const std::vector<Point> &points,
 			 std::vector<float> &vterr,
@@ -71,10 +76,12 @@
 				  std::vector<float> &vterr,
 				  std::vector<float> &vzerr) const;
 
-	    void processMVA(edm::Event& evt, const edm::EventSetup& es, std::vector<float> & mvaVals_) const;
+	    void processMVA(edm::Event& evt, const edm::EventSetup& es,const  reco::BeamSpot& beamspot,const reco::VertexCollection& vertices, int selIndex, std::vector<float> & mvaVals_, bool writeIt=false) const;
+	    Point getBestVertex(const reco::TrackBaseRef,const reco::VertexCollection) const;
 
             /// source collection label
             edm::EDGetTokenT<reco::TrackCollection> src_;
+            edm::EDGetTokenT<TrackingRecHitCollection> hSrc_;
             edm::EDGetTokenT<reco::BeamSpot> beamspot_;
             bool          useVertices_;
             bool          useVtxError_;
@@ -87,6 +94,7 @@
 
             /// vertex cuts
 	    std::vector<int32_t> vtxNumber_;
+	    //StringCutObjectSelector is not const thread safe
 	    std::vector<StringCutObjectSelector<reco::Vertex> > vertexCut_;
 
 	    //  parameters for adapted optimal cuts on chi2 and primary vertex compatibility
@@ -134,14 +142,13 @@
 
 	    //setup mva selector
 	    std::vector<bool> useMVA_;
-	    //std::vector<TMVA::Reader*> mvaReaders_;
+            std::vector<bool> useMVAonly_;
 
 	    std::vector<double> min_MVA_;
 
-	    //std::vector<std::string> mvaType_;
-	    std::string mvaType_;
-	    std::string forestLabel_;
-	    GBRForest * forest_;
+	    std::vector<std::string> mvaType_;
+	    std::vector<std::string> forestLabel_;
+	    std::vector<GBRForest*> forest_;
 	    bool useForestFromDB_;
 	    std::string dbFileName_;
 

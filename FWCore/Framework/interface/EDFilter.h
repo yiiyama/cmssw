@@ -31,6 +31,8 @@ namespace edm {
   class ModuleCallingContext;
   class PreallocationConfiguration;
   class ActivityRegistry;
+  class ProductRegistry;
+  class ThinnedAssociationsHelper;
 
   class EDFilter : public ProducerBase, public EDConsumerBase {
   public:
@@ -68,6 +70,8 @@ namespace edm {
     void doRespondToCloseInputFile(FileBlock const& fb);
     void doPreForkReleaseResources();
     void doPostForkReacquireResources(unsigned int iChildIndex, unsigned int iNumberOfChildren);
+    void doRegisterThinnedAssociations(ProductRegistry const&,
+                                       ThinnedAssociationsHelper&) { }
 
     void registerProductsAndCallbacks(EDFilter* module, ProductRegistry* reg) {
       registerProducts(module, reg, moduleDescription_);
@@ -79,10 +83,10 @@ namespace edm {
     virtual void beginJob(){}
     virtual void endJob(){}
 
-    virtual void beginRun(Run const& iR, EventSetup const& iE){ }
-    virtual void endRun(Run const& iR, EventSetup const& iE){}
-    virtual void beginLuminosityBlock(LuminosityBlock const& iL, EventSetup const& iE){}
-    virtual void endLuminosityBlock(LuminosityBlock const& iL, EventSetup const& iE){}
+    virtual void beginRun(Run const&, EventSetup const&){}
+    virtual void endRun(Run const&, EventSetup const&){}
+    virtual void beginLuminosityBlock(LuminosityBlock const&, EventSetup const&){}
+    virtual void endLuminosityBlock(LuminosityBlock const&, EventSetup const&){}
     virtual void respondToOpenInputFile(FileBlock const&) {}
     virtual void respondToCloseInputFile(FileBlock const&) {}
     virtual void preForkReleaseResources() {}

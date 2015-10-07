@@ -9,19 +9,21 @@ HiTrackingRegionFactoryFromSTAMuonsBlock.MuonTrackingRegionBuilder.vertexCollect
 HiTrackingRegionFactoryFromSTAMuonsBlock.MuonSrc= cms.InputTag("standAloneMuons","UpdatedAtVtx")
 
 HiTrackingRegionFactoryFromSTAMuonsBlock.MuonTrackingRegionBuilder.UseVertex      = True
-HiTrackingRegionFactoryFromSTAMuonsBlock.MuonTrackingRegionBuilder.UseFixedRegion = True
-HiTrackingRegionFactoryFromSTAMuonsBlock.MuonTrackingRegionBuilder.Phi_fixed      = 0.3
-HiTrackingRegionFactoryFromSTAMuonsBlock.MuonTrackingRegionBuilder.Eta_fixed      = 0.2
-
+HiTrackingRegionFactoryFromSTAMuonsBlock.MuonTrackingRegionBuilder.Phi_fixed     = True
+HiTrackingRegionFactoryFromSTAMuonsBlock.MuonTrackingRegionBuilder.Eta_fixed     = True
+HiTrackingRegionFactoryFromSTAMuonsBlock.MuonTrackingRegionBuilder.DeltaPhi      = 0.3
+HiTrackingRegionFactoryFromSTAMuonsBlock.MuonTrackingRegionBuilder.DeltaEta      = 0.2
 
 ###################################
 from RecoTracker.IterativeTracking.MixedTripletStep_cff import *
 
 # NEW CLUSTERS (remove previously used clusters)
 hiRegitMuMixedTripletStepClusters = RecoTracker.IterativeTracking.MixedTripletStep_cff.mixedTripletStepClusters.clone(
-    oldClusterRemovalInfo = cms.InputTag("hiRegitMuDetachedTripletStepClusters"),
-    trajectories          = cms.InputTag("hiRegitMuDetachedTripletStepTracks"),
-    overrideTrkQuals      = cms.InputTag('hiRegitMuDetachedTripletStepSelector','hiRegitMuDetachedTripletStep'),
+    oldClusterRemovalInfo = cms.InputTag("hiRegitMuPixelPairStepClusters"),
+    trajectories          = cms.InputTag("hiRegitMuPixelPairStepTracks"),
+    overrideTrkQuals      = cms.InputTag('hiRegitMuPixelPairStepSelector','hiRegitMuPixelPairStep'),
+    trackClassifier       = cms.InputTag(''),
+    TrackQuality          = cms.string('tight')
 )
 
 
@@ -35,9 +37,9 @@ hiRegitMuMixedTripletStepSeedLayersA.TEC.skipClusters  = cms.InputTag('hiRegitMu
 hiRegitMuMixedTripletStepSeedsA = RecoTracker.IterativeTracking.MixedTripletStep_cff.mixedTripletStepSeedsA.clone()
 hiRegitMuMixedTripletStepSeedsA.RegionFactoryPSet                                           = HiTrackingRegionFactoryFromSTAMuonsBlock.clone()
 hiRegitMuMixedTripletStepSeedsA.ClusterCheckPSet.doClusterCheck                             = False # do not check for max number of clusters pixel or strips
-hiRegitMuMixedTripletStepSeedsA.RegionFactoryPSet.MuonTrackingRegionBuilder.EscapePt        = 1.3
+hiRegitMuMixedTripletStepSeedsA.RegionFactoryPSet.MuonTrackingRegionBuilder.Pt_min          = 1.3
 hiRegitMuMixedTripletStepSeedsA.RegionFactoryPSet.MuonTrackingRegionBuilder.DeltaR          = 0.5 # default = 0.2
-hiRegitMuMixedTripletStepSeedsA.RegionFactoryPSet.MuonTrackingRegionBuilder.DeltaZ_Region   = 0.5 # this give you the length 
+hiRegitMuMixedTripletStepSeedsA.RegionFactoryPSet.MuonTrackingRegionBuilder.DeltaZ	    = 0.5 # this give you the length 
 hiRegitMuMixedTripletStepSeedsA.RegionFactoryPSet.MuonTrackingRegionBuilder.Rescale_Dz      = 4.   # max(DeltaZ_Region,Rescale_Dz*vtx->zError())
 hiRegitMuMixedTripletStepSeedsA.OrderedHitsFactoryPSet.SeedingLayers = 'hiRegitMuMixedTripletStepSeedLayersA'
 
@@ -50,9 +52,9 @@ hiRegitMuMixedTripletStepSeedLayersB.TIB.skipClusters  = cms.InputTag('hiRegitMu
 hiRegitMuMixedTripletStepSeedsB = RecoTracker.IterativeTracking.MixedTripletStep_cff.mixedTripletStepSeedsB.clone()
 hiRegitMuMixedTripletStepSeedsB.RegionFactoryPSet                                           = HiTrackingRegionFactoryFromSTAMuonsBlock.clone()
 hiRegitMuMixedTripletStepSeedsB.ClusterCheckPSet.doClusterCheck                             = False # do not check for max number of clusters pixel or strips
-hiRegitMuMixedTripletStepSeedsB.RegionFactoryPSet.MuonTrackingRegionBuilder.EscapePt        = 1.5
+hiRegitMuMixedTripletStepSeedsB.RegionFactoryPSet.MuonTrackingRegionBuilder.Pt_min          = 1.5
 hiRegitMuMixedTripletStepSeedsB.RegionFactoryPSet.MuonTrackingRegionBuilder.DeltaR          = 0.5 # default = 0.2
-hiRegitMuMixedTripletStepSeedsB.RegionFactoryPSet.MuonTrackingRegionBuilder.DeltaZ_Region   = 0.5 # this give you the length 
+hiRegitMuMixedTripletStepSeedsB.RegionFactoryPSet.MuonTrackingRegionBuilder.DeltaZ          = 0.5 # this give you the length 
 hiRegitMuMixedTripletStepSeedsB.RegionFactoryPSet.MuonTrackingRegionBuilder.Rescale_Dz      = 4.   # max(DeltaZ_Region,Rescale_Dz*vtx->zError())
 hiRegitMuMixedTripletStepSeedsB.OrderedHitsFactoryPSet.SeedingLayers = 'hiRegitMuMixedTripletStepSeedLayersB'
 
@@ -66,6 +68,7 @@ hiRegitMuMixedTripletStepSeeds = RecoTracker.IterativeTracking.MixedTripletStep_
 
 # track building
 hiRegitMuMixedTripletStepTrajectoryFilter = RecoTracker.IterativeTracking.MixedTripletStep_cff.mixedTripletStepTrajectoryFilter.clone()
+
 hiRegitMuMixedTripletStepTrajectoryFilter.minPt = 1.
 hiRegitMuMixedTripletStepTrajectoryFilter.minimumNumberOfHits = 6
 hiRegitMuMixedTripletStepTrajectoryFilter.minHitsMinPt        = 4
@@ -74,39 +77,55 @@ hiRegitMuMixedTripletStepTrajectoryFilter.minHitsMinPt        = 4
  # after each new hit, apply pT cut for traj w/ at least minHitsMinPt = cms.int32(3),
 
 hiRegitMuMixedTripletStepTrajectoryBuilder = RecoTracker.IterativeTracking.MixedTripletStep_cff.mixedTripletStepTrajectoryBuilder.clone(
-    trajectoryFilter     = cms.PSet(refToPSet_ = cms.string('hiRegitMuMixedTripletStepTrajectoryFilter')),
-    clustersToSkip       = cms.InputTag('hiRegitMuMixedTripletStepClusters'),
+    trajectoryFilter = cms.PSet(
+       refToPSet_ = cms.string('hiRegitMuMixedTripletStepTrajectoryFilter')
+       ),
     minNrOfHitsForRebuild = 6 #change from default 4
 )
 
 hiRegitMuMixedTripletStepTrackCandidates        =  RecoTracker.IterativeTracking.MixedTripletStep_cff.mixedTripletStepTrackCandidates.clone(
     src               = cms.InputTag('hiRegitMuMixedTripletStepSeeds'),
-    TrajectoryBuilderPSet = cms.PSet(refToPSet_ = cms.string('hiRegitMuMixedTripletStepTrajectoryBuilder')),
+    TrajectoryBuilderPSet = cms.PSet(
+       refToPSet_ = cms.string('hiRegitMuMixedTripletStepTrajectoryBuilder')
+       ),
+    clustersToSkip       = cms.InputTag('hiRegitMuMixedTripletStepClusters'), 
     maxNSeeds         = cms.uint32(1000000)
     )
 
 # fitting: feed new-names
 hiRegitMuMixedTripletStepTracks                 = RecoTracker.IterativeTracking.MixedTripletStep_cff.mixedTripletStepTracks.clone(
-    src                 = 'hiRegitMuMixedTripletStepTrackCandidates'
+    AlgorithmName = cms.string('hiRegitMuMixedTripletStep'),
+    src                 = 'hiRegitMuMixedTripletStepTrackCandidates',
 )
 
 
 # TRACK SELECTION AND QUALITY FLAG SETTING.
-#import RecoTracker.FinalTrackSelectors.multiTrackSelector_cfi
-from RecoHI.HiTracking.hiRegitMixedTripletStep_cff import *
-hiRegitMuMixedTripletStepSelector =  RecoHI.HiTracking.hiRegitMixedTripletStep_cff.hiRegitMixedTripletStepSelector.clone( # selector from hi taken
+import RecoTracker.FinalTrackSelectors.multiTrackSelector_cfi
+import RecoHI.HiTracking.hiMultiTrackSelector_cfi
+hiRegitMuMixedTripletStepSelector = RecoHI.HiTracking.hiMultiTrackSelector_cfi.hiMultiTrackSelector.clone(
     src                 = 'hiRegitMuMixedTripletStepTracks',
+    vertices            = cms.InputTag("hiSelectedVertex"),
+    useAnyMVA = cms.bool(True),
+    GBRForestLabel = cms.string('HIMVASelectorIter7'),
+    GBRForestVars = cms.vstring(['chi2perdofperlayer', 'nhits', 'nlayers', 'eta']),
     trackSelectors= cms.VPSet(
-        RecoHI.HiTracking.hiMultiTrackSelector_cfi.hiLooseMTS.clone(
-            name = 'hiRegitMuMixedTripletStepLoose',
+        RecoTracker.FinalTrackSelectors.multiTrackSelector_cfi.looseMTS.clone(
+           name = 'hiRegitMuMixedTripletStepLoose',
+           min_nhits = cms.uint32(8)
             ),
         RecoHI.HiTracking.hiMultiTrackSelector_cfi.hiTightMTS.clone(
             name = 'hiRegitMuMixedTripletStepTight',
             preFilterName = 'hiRegitMuMixedTripletStepLoose',
+            min_nhits = cms.uint32(8),
+            useMVA = cms.bool(True),
+            minMVA = cms.double(-0.2)
             ),
         RecoHI.HiTracking.hiMultiTrackSelector_cfi.hiHighpurityMTS.clone(
             name = 'hiRegitMuMixedTripletStep',
             preFilterName = 'hiRegitMuMixedTripletStepTight',
+            min_nhits = cms.uint32(8),
+            useMVA = cms.bool(True),
+            minMVA = cms.double(-0.09)
             )
         ) #end of vpset
     ) #end of clone

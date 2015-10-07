@@ -87,41 +87,41 @@ namespace cond {
       std::string authPath = m_authPath;
       // authentication
       if( authPath.empty() ){
-	    // first try to check the env...
-	    const char* authEnv = ::getenv( cond::Auth::COND_AUTH_PATH );
-	    if(authEnv){
-	      authPath += authEnv;
-	    } 
+	// first try to check the env...
+	const char* authEnv = ::getenv( cond::Auth::COND_AUTH_PATH );
+	if(authEnv){
+	  authPath += authEnv;
+	} 
       }
       int authSys = m_authSys;
       // first attempt, look at the env...
       const char* authSysEnv = ::getenv( cond::Auth::COND_AUTH_SYS );
       if( authSysEnv ){
-	      authSys = ::atoi( authSysEnv );
+	authSys = ::atoi( authSysEnv );
       }
       if( authSys !=CondDbKey && authSys != CoralXMLFile ){
-	      // take the default
-	      authSys = CondDbKey;
+	// take the default
+	authSys = CondDbKey;
       }  
       std::string servName("");
       if( authSys == CondDbKey ){
-	      if( authPath.empty() ){
-	          const char* authEnv = ::getenv("HOME");
-	          if(authEnv){
-	              authPath += authEnv;
-	          } 
-	      }
-	      servName = "COND/Services/RelationalAuthenticationService";     
+	if( authPath.empty() ){
+	  const char* authEnv = ::getenv("HOME");
+	  if(authEnv){
+	    authPath += authEnv;
+	  } 
+	}
+	servName = "COND/Services/RelationalAuthenticationService";     
       } else if( authSys == CoralXMLFile ){
-	      if( authPath.empty() ){
-	          authPath = ".";
-	      }
-	      servName = "COND/Services/XMLAuthenticationService";  
+	if( authPath.empty() ){
+	  authPath = ".";
+	}
+	servName = "COND/Services/XMLAuthenticationService";  
       }
       if( !authPath.empty() ){
-	      authServiceName = servName;    
-	      coral::Context::instance().PropertyManager().property(cond::Auth::COND_AUTH_PATH_PROPERTY)->set(authPath);  
-          coral::Context::instance().loadComponent( authServiceName, m_pluginManager );
+	authServiceName = servName;    
+	coral::Context::instance().PropertyManager().property(cond::Auth::COND_AUTH_PATH_PROPERTY)->set(authPath);  
+	coral::Context::instance().loadComponent( authServiceName, m_pluginManager );
       }
       
       coralConfig.setAuthenticationService( authServiceName );
@@ -130,6 +130,28 @@ namespace cond {
     void ConnectionPool::configure() {
       coral::ConnectionService connServ;
       configure( connServ.configuration() );
+    }
+
+    boost::shared_ptr<coral::ISessionProxy> ConnectionPool::createCoralSession( const std::string& connectionString, 
+										const std::string& transactionId,
+										bool writeCapable ){
+      coral::ConnectionService connServ;
+      std::pair<std::string,std::string> fullConnectionPars = getConnectionParams( connectionString, transactionId );
+      if( !fullConnectionPars.second.empty() ) {
+	// the olds formats
+	connServ.webCacheControl().refreshTable( fullConnectionPars.second, POOL_IOV_TABLE_DATA );
+	connServ.webCacheControl().refreshTable( fullConnectionPars.second, ORA_IOV_TABLE_1 );
+	connServ.webCacheControl().refreshTable( fullConnectionPars.second, ORA_IOV_TABLE_2 );
+	connServ.webCacheControl().refreshTable( fullConnectionPars.second, ORA_IOV_TABLE_3 );
+	// the new schema...
+	connServ.webCacheControl().setTableTimeToLive( fullConnectionPars.second, TAG::tname, 1 );
+	connServ.webCacheControl().setTableTimeToLive( fullConnectionPars.second, IOV::tname, 1 );
+	connServ.webCacheControl().setTableTimeToLive( fullConnectionPars.second, PAYLOAD::tname, 3 );
+      }
+
+      return boost::shared_ptr<coral::ISessionProxy>( connServ.connect( fullConnectionPars.first, 
+									writeCapable?Auth::COND_WRITER_ROLE:Auth::COND_READER_ROLE,
+									writeCapable?coral::Update:coral::ReadOnly ) ); 
     }
 
     Session ConnectionPool::createSession( const std::string& connectionString, 
@@ -150,9 +172,8 @@ namespace cond {
 	connServ.webCacheControl().setTableTimeToLive( fullConnectionPars.second, PAYLOAD::tname, 3 );
       }
 
-      boost::shared_ptr<coral::ISessionProxy> coralSession( connServ.connect( fullConnectionPars.first, 
-									      writeCapable?Auth::COND_WRITER_ROLE:Auth::COND_READER_ROLE,
-									      writeCapable?coral::Update:coral::ReadOnly ) );
+      boost::shared_ptr<coral::ISessionProxy> coralSession = createCoralSession( connectionString, transactionId, writeCapable );
+
       BackendType bt;
       auto it = m_dbTypes.find( connectionString);
       if( it == m_dbTypes.end() ){
@@ -174,6 +195,12 @@ namespace cond {
     Session ConnectionPool::createReadOnlySession( const std::string& connectionString, const std::string& transactionId ){
       return createSession( connectionString, transactionId );
     }
+
+    boost::shared_ptr<coral::ISessionProxy> ConnectionPool::createCoralSession( const std::string& connectionString, 
+										bool writeCapable ){
+      return createCoralSession( connectionString, "", writeCapable );
+    }
+
     void ConnectionPool::setMessageVerbosity( coral::MsgLevel level ){
       m_messageLevel = level;
     }

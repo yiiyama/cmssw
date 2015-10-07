@@ -17,7 +17,7 @@ namespace edm {
   Event::Event(EventPrincipal& ep, ModuleDescription const& md, ModuleCallingContext const* moduleCallingContext) :
       provRecorder_(ep, md),
       aux_(ep.aux()),
-      luminosityBlock_(ep.luminosityBlockPrincipalPtrValid() ? new LuminosityBlock(ep.luminosityBlockPrincipal(), md, moduleCallingContext) : 0),
+      luminosityBlock_(ep.luminosityBlockPrincipalPtrValid() ? new LuminosityBlock(ep.luminosityBlockPrincipal(), md, moduleCallingContext) : nullptr),
       gotBranchIDs_(),
       gotViews_(),
       streamID_(ep.streamID()),
@@ -38,6 +38,13 @@ namespace edm {
     provRecorder_.setConsumer(iConsumer);
     const_cast<LuminosityBlock*>(luminosityBlock_.get())->setConsumer(iConsumer);
   }
+  
+  void
+  Event::setSharedResourcesAcquirer( SharedResourcesAcquirer* iResourceAcquirer) {
+    provRecorder_.setSharedResourcesAcquirer(iResourceAcquirer);
+    const_cast<LuminosityBlock*>(luminosityBlock_.get())->setSharedResourcesAcquirer(iResourceAcquirer);
+  }
+
 
   EventPrincipal&
   Event::eventPrincipal() {
@@ -47,6 +54,11 @@ namespace edm {
   EventPrincipal const&
   Event::eventPrincipal() const {
     return dynamic_cast<EventPrincipal const&>(provRecorder_.principal());
+  }
+
+  EDProductGetter const&
+  Event::productGetter() const {
+    return provRecorder_.principal();
   }
 
   ProductID
@@ -189,6 +201,15 @@ namespace edm {
   BasicHandle
   Event::getByLabelImpl(std::type_info const&, std::type_info const& iProductType, const InputTag& iTag) const {
     BasicHandle h = provRecorder_.getByLabel_(TypeID(iProductType), iTag, moduleCallingContext_);
+    if(h.isValid()) {
+      addToGotBranchIDs(*(h.provenance()));
+    }
+    return h;
+  }
+
+  BasicHandle
+  Event::getImpl(std::type_info const&, ProductID const& pid) const {
+    BasicHandle h = this->getByProductID_(pid);
     if(h.isValid()) {
       addToGotBranchIDs(*(h.provenance()));
     }

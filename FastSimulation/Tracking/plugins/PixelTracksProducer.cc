@@ -4,11 +4,15 @@
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/Framework/interface/ConsumesCollector.h"
+#include "FWCore/Framework/interface/ESHandle.h"
 
 #include "DataFormats/Common/interface/Handle.h"
 #include "DataFormats/Common/interface/OwnVector.h"
 
 #include "DataFormats/TrackingRecHit/interface/TrackingRecHit.h"
+
+#include "DataFormats/TrackerCommon/interface/TrackerTopology.h"
+#include "Geometry/Records/interface/TrackerTopologyRcd.h"
 
 //Pixel Specific stuff
 #include "RecoTracker/TkTrackingRegions/interface/TrackingRegionProducer.h"
@@ -82,6 +86,10 @@ PixelTracksProducer::produce(edm::Event& e, const edm::EventSetup& es) {
   
   TracksWithRecHits pixeltracks;
   TracksWithRecHits cleanedTracks;
+
+  edm::ESHandle<TrackerTopology> httopo;
+  es.get<TrackerTopologyRcd>().get(httopo);
+  const TrackerTopology& ttopo = *httopo;
   
   edm::Handle<TrajectorySeedCollection> theSeeds;
   e.getByToken(seedProducerToken,theSeeds);
@@ -97,7 +105,7 @@ PixelTracksProducer::produce(edm::Event& e, const edm::EventSetup& es) {
   //only one region Global, but it is called at every event...
   //maybe there is a smarter way to set it only once
   //NEED TO FIX
-  typedef std::vector<TrackingRegion* > Regions;
+  typedef std::vector<std::unique_ptr<TrackingRegion> > Regions;
   typedef Regions::const_iterator IR;
   Regions regions = theRegionProducer->regions(e,es);
   for (IR ir=regions.begin(), irEnd=regions.end(); ir < irEnd; ++ir) {
@@ -142,7 +150,7 @@ PixelTracksProducer::produce(edm::Event& e, const edm::EventSetup& es) {
     
     for (unsigned int k = 0; k < hits.size(); k++) {
       TrackingRecHit *hit = (hits.at(k))->clone();
-      track->appendHitPattern(*hit);
+      track->appendHitPattern(*hit, ttopo);
       recHits->push_back(hit);
     }
 
@@ -152,7 +160,8 @@ PixelTracksProducer::produce(edm::Event& e, const edm::EventSetup& es) {
   }
   
   edm::OrphanHandle <TrackingRecHitCollection> ohRH = e.put( recHits );
-  
+  edm::RefProd<TrackingRecHitCollection> ohRHProd(ohRH);
+
   for (int k = 0; k < nTracks; ++k) {
 
     // reco::TrackExtra* theTrackExtra = new reco::TrackExtra();
@@ -160,12 +169,9 @@ PixelTracksProducer::produce(edm::Event& e, const edm::EventSetup& es) {
     
     //fill the TrackExtra with TrackingRecHitRef
     // unsigned int nHits = tracks->at(k).numberOfValidHits();
-    unsigned nHits = 3; // We are dealing with triplets!
-    for(unsigned int i = 0; i < nHits; ++i) {
-      theTrackExtra.add(TrackingRecHitRef(ohRH,cc++));
-      //theTrackExtra->add(TrackingRecHitRef(ohRH,cc));
-      //cc++;
-    }
+    const unsigned nHits = 3; // We are dealing with triplets!
+    theTrackExtra.setHits( ohRHProd, cc, nHits);
+    cc += nHits;
     
     trackExtras->push_back(theTrackExtra);
     //trackExtras->push_back(*theTrackExtra);
@@ -182,12 +188,6 @@ PixelTracksProducer::produce(edm::Event& e, const edm::EventSetup& es) {
   }
   
   e.put(tracks);
-  
-  // Avoid a memory leak !
-  unsigned nRegions = regions.size();
-  for ( unsigned iRegions=0; iRegions<nRegions; ++iRegions ) {
-    delete regions[iRegions];
-  }
 
 }
 

@@ -29,8 +29,10 @@
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/EventSetup.h"
 #include "FWCore/Framework/interface/ESHandle.h"
+#include "FWCore/Framework/interface/makeRefToBaseProdFrom.h"
 #include "FWCore/Utilities/interface/InputTag.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
+#include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
 #include "FWCore/Utilities/interface/Exception.h"
 #include "FWCore/Utilities/interface/EDMException.h"
 
@@ -132,7 +134,7 @@ JetTagProducer::produce(Event& iEvent, const EventSetup& iSetup)
   auto_ptr<JetTagCollection> jetTagCollection;
   if (tagInfoHandle.product()->size() > 0) {
     RefToBase<Jet> jj = tagInfoHandle->begin()->jet();
-    jetTagCollection.reset(new JetTagCollection(RefToBaseProd<Jet>(jj)));
+    jetTagCollection.reset(new JetTagCollection(edm::makeRefToBaseProdFrom(jj, iEvent)));
   } else
     jetTagCollection.reset(new JetTagCollection());
 
@@ -148,6 +150,23 @@ JetTagProducer::produce(Event& iEvent, const EventSetup& iSetup)
   }
 
   iEvent.put(jetTagCollection);
+}
+
+// ------------ method fills 'descriptions' with the allowed parameters for the module ------------
+void
+JetTagProducer::fillDescriptions(edm::ConfigurationDescriptions & descriptions) {
+
+  edm::ParameterSetDescription desc;
+  desc.add<std::string>("jetTagComputer","combinedMVAComputer");
+  {
+    std::vector<edm::InputTag> tagInfos;
+    tagInfos.push_back(edm::InputTag("impactParameterTagInfos"));
+    tagInfos.push_back(edm::InputTag("inclusiveSecondaryVertexFinderTagInfos"));
+    tagInfos.push_back(edm::InputTag("softPFMuonsTagInfos"));
+    tagInfos.push_back(edm::InputTag("softPFElectronsTagInfos"));
+    desc.add<std::vector<edm::InputTag> >("tagInfos",tagInfos);
+  }
+  descriptions.addDefault(desc);
 }
 
 // define it as plugin

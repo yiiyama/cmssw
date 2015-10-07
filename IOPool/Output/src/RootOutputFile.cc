@@ -26,13 +26,14 @@
 #include "DataFormats/Provenance/interface/ParameterSetID.h"
 #include "DataFormats/Provenance/interface/ProcessHistoryID.h"
 #include "DataFormats/Provenance/interface/ProductRegistry.h"
+#include "DataFormats/Provenance/interface/ThinnedAssociationsHelper.h"
 #include "FWCore/Framework/interface/ConstProductRegistry.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ParameterSet/interface/Registry.h"
 #include "FWCore/ServiceRegistry/interface/Service.h"
+#include "FWCore/Utilities/interface/ExceptionPropagate.h"
 #include "IOPool/Common/interface/getWrapperBasePtr.h"
 
-#include "TROOT.h"
 #include "TTree.h"
 #include "TFile.h"
 #include "TClass.h"
@@ -62,6 +63,17 @@ namespace edm {
         lh->processName() < rh->processName() ? true :
         false;
     }
+
+    TFile*
+    openTFile(char const* name, int compressionLevel) {
+      TFile* file = TFile::Open(name, "recreate", "", compressionLevel);
+      std::exception_ptr e = edm::threadLocalException::getException();
+      if(e != std::exception_ptr()) {
+        edm::threadLocalException::setException(std::exception_ptr());
+        std::rethrow_exception(e);
+      }
+      return file;
+    }
   }
 
   RootOutputFile::RootOutputFile(PoolOutputModule* om, std::string const& fileName, std::string const& logicalFileName) :
@@ -71,7 +83,7 @@ namespace edm {
       om_(om),
       whyNotFastClonable_(om_->whyNotFastClonable()),
       canFastCloneAux_(false),
-      filePtr_(TFile::Open(file_.c_str(), "recreate", "", om_->compressionLevel())),
+      filePtr_(openTFile(file_.c_str(), om_->compressionLevel())),
       fid_(),
       eventEntryNumber_(0LL),
       lumiEntryNumber_(0LL),
@@ -97,7 +109,7 @@ namespace edm {
       processHistoryRegistry_(),
       parentageIDs_(),
       branchesWithStoredHistory_(),
-      wrapperBaseTClass_(gROOT->GetClass("edm::WrapperBase")) {
+      wrapperBaseTClass_(TClass::GetClass("edm::WrapperBase")) {
 #if ROOT_VERSION_CODE >= ROOT_VERSION(5,30,0)
     if (om_->compressionAlgorithm() == std::string("ZLIB")) {
       filePtr_->SetCompressionAlgorithm(ROOT::kZLIB);
@@ -471,9 +483,9 @@ namespace edm {
                                         &desc, om_->basketSize(), 0))
       throw Exception(errors::FatalRootError)
         << "Failed to create a branch for Parentages in the output file";
-    
+
     ParentageRegistry& ptReg = *ParentageRegistry::instance();
-    
+
     std::vector<ParentageID> orderedIDs(parentageIDs_.size());
     for(auto const& parentageID : parentageIDs_) {
       orderedIDs[parentageID.second] = parentageID.first;
@@ -485,7 +497,7 @@ namespace edm {
       // so a null value of desc can't be fatal.
       // Root will default construct an object in that case.
       parentageTree_->Fill();
-    }    
+    }
   }
 
   void RootOutputFile::writeFileFormatVersion() {
@@ -534,6 +546,13 @@ namespace edm {
   void RootOutputFile::writeBranchIDListRegistry() {
     BranchIDLists const* p = om_->branchIDLists();
     TBranch* b = metaDataTree_->Branch(poolNames::branchIDListBranchName().c_str(), &p, om_->basketSize(), 0);
+    assert(b);
+    b->Fill();
+  }
+
+  void RootOutputFile::writeThinnedAssociationsHelper() {
+    ThinnedAssociationsHelper const* p = om_->thinnedAssociationsHelper();
+    TBranch* b = metaDataTree_->Branch(poolNames::thinnedAssociationsHelperBranchName().c_str(), &p, om_->basketSize(), 0);
     assert(b);
     b->Fill();
   }
@@ -709,7 +728,7 @@ namespace edm {
         if(product == nullptr) {
           // No product with this ID is in the event.
           // Add a null product.
-          TClass* cp = gROOT->GetClass(item.branchDescription_->wrappedName().c_str());
+          TClass* cp = TClass::GetClass(item.branchDescription_->wrappedName().c_str());
           int offset = cp->GetBaseClassOffset(wrapperBaseTClass_);
           void* p = cp->New();
           std::unique_ptr<WrapperBase> dummy = getWrapperBasePtr(p, offset);
@@ -724,7 +743,7 @@ namespace edm {
     treePointers_[branchType]->fillTree();
     if(productProvenanceVecPtr != nullptr) productProvenanceVecPtr->clear();
   }
-  
+
   bool
   RootOutputFile::insertProductProvenance(const edm::ProductProvenance& iProv,
                                           std::set<edm::StoredProductProvenance>& oToInsert) {

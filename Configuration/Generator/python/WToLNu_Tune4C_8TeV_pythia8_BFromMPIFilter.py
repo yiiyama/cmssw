@@ -1,6 +1,6 @@
 import FWCore.ParameterSet.Config as cms
 
-source = cms.Source("EmptySource")
+
 
 generator = cms.EDFilter("Pythia8GeneratorFilter",
     maxEventsToPrint = cms.untracked.int32(1),
@@ -35,7 +35,7 @@ BFilter = cms.EDFilter("HeavyQuarkFromMPIFilter",
 
 genParticlesForFilter = cms.EDProducer("GenParticleProducer",
     saveBarCodes = cms.untracked.bool(True),
-    src = cms.InputTag("generator"),
+    src = cms.InputTag("generator", "unsmeared"),
     abortOnUnknownPDGCode = cms.untracked.bool(False)
 )
 

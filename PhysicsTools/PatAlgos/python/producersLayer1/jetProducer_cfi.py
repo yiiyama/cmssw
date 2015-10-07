@@ -36,13 +36,20 @@ patJets = cms.EDProducer("PATJetProducer",
     addBTagInfo          = cms.bool(True),   ## master switch
     addDiscriminators    = cms.bool(True),   ## addition btag discriminators
     discriminatorSources = cms.VInputTag(
-        cms.InputTag("jetBProbabilityBJetTags"),
-        cms.InputTag("jetProbabilityBJetTags"),
-        cms.InputTag("trackCountingHighPurBJetTags"),
-        cms.InputTag("trackCountingHighEffBJetTags"),
-        cms.InputTag("simpleSecondaryVertexHighEffBJetTags"),
-        cms.InputTag("simpleSecondaryVertexHighPurBJetTags"),
-        cms.InputTag("combinedSecondaryVertexBJetTags")
+        cms.InputTag("pfJetBProbabilityBJetTags"),
+        cms.InputTag("pfJetProbabilityBJetTags"),
+        cms.InputTag("pfTrackCountingHighPurBJetTags"),
+        cms.InputTag("pfTrackCountingHighEffBJetTags"),
+        cms.InputTag("pfSimpleSecondaryVertexHighEffBJetTags"),
+        cms.InputTag("pfSimpleSecondaryVertexHighPurBJetTags"),
+        cms.InputTag("pfCombinedSecondaryVertexV2BJetTags"),
+        cms.InputTag("pfCombinedInclusiveSecondaryVertexV2BJetTags"),
+        cms.InputTag("softPFMuonBJetTags"),
+        cms.InputTag("softPFElectronBJetTags"),
+        cms.InputTag("pfCombinedMVABJetTags"),
+        #CTagging -- temporary commented out waiting for RelVals
+        ## cms.InputTag('pfCombinedCvsLJetTags'),
+        ## cms.InputTag('pfCombinedCvsBJetTags')
     ),
     # clone tag infos ATTENTION: these take lots of space!
     # usually the discriminators from the default algos
@@ -70,7 +77,7 @@ patJets = cms.EDProducer("PATJetProducer",
     # jet flavour idetification configurables
     getJetMCFlavour    = cms.bool(True),
     useLegacyJetMCFlavour = cms.bool(False),
-    addJetFlavourInfo  = cms.bool(False),
+    addJetFlavourInfo  = cms.bool(True),
     JetPartonMapSource = cms.InputTag("patJetFlavourAssociationLegacy"),
     JetFlavourInfoSource = cms.InputTag("patJetFlavourAssociation"),
     # efficiencies

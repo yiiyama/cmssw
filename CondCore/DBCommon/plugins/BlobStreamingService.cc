@@ -18,9 +18,18 @@
 #include <cstring>
 #include <zlib.h>
 
+// Function for testing BlobStreamingService
+namespace test {
+  namespace BlobStreaming {
+    int test();
+  }
+}
+
 namespace cond {
 
   class BlobStreamingService : virtual public ora::IBlobStreamingService {
+    friend int test::BlobStreaming::test();
+
   public:
     
     
@@ -28,9 +37,9 @@ namespace cond {
     
     virtual ~BlobStreamingService();
     
-    boost::shared_ptr<coral::Blob> write( const void* addressOfInputData,  Reflex::Type const & classDictionary, bool useCompression=true ) override;
+    boost::shared_ptr<coral::Blob> write( const void* addressOfInputData,  edm::TypeWithDict const & classDictionary, bool useCompression=true ) override;
     
-    void read( const coral::Blob& blobData, void* addressOfContainer,  Reflex::Type const & classDictionary ) override;
+    void read( const coral::Blob& blobData, void* addressOfContainer,  edm::TypeWithDict const & classDictionary ) override;
     
     
   private:
@@ -46,7 +55,7 @@ namespace cond {
     
     
     static Variant findVariant(const void* address);
-    static int isVectorChar(Reflex::Type const & classDictionary);
+    static int isVectorChar(edm::TypeWithDict const & classDictionary);
     
     
     static boost::shared_ptr<coral::Blob>  compress(const void* addr, size_t isize);
@@ -62,7 +71,7 @@ namespace cond {
   
   BlobStreamingService::~BlobStreamingService(){}
   
-  boost::shared_ptr<coral::Blob> BlobStreamingService::write( const void* addressOfInputData,  Reflex::Type const & classDictionary, bool useCompression ) {
+  boost::shared_ptr<coral::Blob> BlobStreamingService::write( const void* addressOfInputData,  edm::TypeWithDict const & classDictionary, bool useCompression ) {
     boost::shared_ptr<coral::Blob> blobOut;
     int const k = isVectorChar(classDictionary);
     switch (k) {
@@ -108,7 +117,7 @@ namespace cond {
   }
   
   
-  void BlobStreamingService::read( const coral::Blob& blobData, void* addressOfContainer,  Reflex::Type const & classDictionary ) {
+  void BlobStreamingService::read( const coral::Blob& blobData, void* addressOfContainer,  edm::TypeWithDict const & classDictionary ) {
     // protect against small blobs...
     Variant v =  (size_t(blobData.size()) < m_offset) ? OLD : findVariant(blobData.startingAddress());
     switch (v) {
@@ -164,10 +173,9 @@ namespace cond {
   };
   
   
-  int BlobStreamingService::isVectorChar(Reflex::Type const & classDictionary) {
-    std::type_info const & t = classDictionary.TypeInfo();
-    if (t==typeid(std::vector<unsigned char>) ) return 1;
-    if (t==typeid(std::vector<char>) ) return 2;
+  int BlobStreamingService::isVectorChar(edm::TypeWithDict const& classDictionary) {
+    if (classDictionary == typeid(std::vector<unsigned char>)) return 1;
+    if (classDictionary == typeid(std::vector<char>)) return 2;
     return 0;
   }
   

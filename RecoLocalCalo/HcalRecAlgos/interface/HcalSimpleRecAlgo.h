@@ -20,6 +20,11 @@
 #include "CalibCalorimetry/HcalAlgos/interface/HcalPulseContainmentManager.h"
 #include "CondFormats/HcalObjects/interface/AbsOOTPileupCorrection.h"
 
+#include "RecoLocalCalo/HcalRecAlgos/interface/PulseShapeFitOOTPileupCorrection.h"
+#include "RecoLocalCalo/HcalRecAlgos/interface/HcalDeterministicFit.h"
+
+#include "RecoLocalCalo/HcalRecAlgos/interface/PedestalSub.h"
+
 /** \class HcalSimpleRecAlgo
 
    This class reconstructs RecHits from Digis for HBHE, HF, and HO by addition
@@ -31,14 +36,12 @@
     
    \author J. Mans - Minnesota
 */
+
 class HcalSimpleRecAlgo {
 public:
   /** Full featured constructor for HB/HE and HO (HPD-based detectors) */
   HcalSimpleRecAlgo(bool correctForTimeslew, 
 		    bool correctForContainment, float fixedPhaseNs);
-
-  /** Simple constructor for PMT-based detectors */
-  HcalSimpleRecAlgo();
 
   void beginRun(edm::EventSetup const & es);
   void endRun();
@@ -49,7 +52,7 @@ public:
   void setRecoParams(bool correctForTimeslew, bool correctForPulse, bool setLeakCorrection, int pileupCleaningID, float phaseNS);
 
   // ugly hack related to HB- e-dependent corrections
-  void setForData(int runnum);
+  void setForData (int runnum);
 
   // usage of leak correction 
   void setLeakCorrection();
@@ -73,7 +76,18 @@ public:
   HORecHit reconstruct(const HODataFrame& digi,  int first, int toadd, const HcalCoder& coder, const HcalCalibrations& calibs) const;
   HcalCalibRecHit reconstruct(const HcalCalibDataFrame& digi,  int first, int toadd, const HcalCoder& coder, const HcalCalibrations& calibs) const;
 
+  void setpuCorrMethod(int method){ 
+    puCorrMethod_ = method;
+    if( puCorrMethod_ == 2 )
+        psFitOOTpuCorr_ = std::auto_ptr<PulseShapeFitOOTPileupCorrection>(new PulseShapeFitOOTPileupCorrection());
+  }
 
+  void setpuCorrParams(bool   iPedestalConstraint, bool iTimeConstraint,bool iAddPulseJitter,bool iUnConstrainedFit,bool iApplyTimeSlew,
+		       double iTS4Min, double iTS4Max, double iPulseJitter,double iTimeMean,double iTimeSig,double iPedMean,double iPedSig,
+		       double iNoise,double iTMin,double iTMax,
+		       double its3Chi2,double its4Chi2,double its345Chi2,double iChargeThreshold, int iFitTimes); 
+  void setMeth3Params(int iPedSubMethod, float iPedSubThreshold, int iTimeSlewParsType, std::vector<double> iTimeSlewPars, double irespCorrM3);
+               
 private:
   bool correctForTimeslew_;
   bool correctForPulse_;
@@ -87,6 +101,17 @@ private:
   boost::shared_ptr<AbsOOTPileupCorrection> hbhePileupCorr_;
   boost::shared_ptr<AbsOOTPileupCorrection> hfPileupCorr_;
   boost::shared_ptr<AbsOOTPileupCorrection> hoPileupCorr_;
+
+  HcalPulseShapes theHcalPulseShapes_;
+
+  int puCorrMethod_;
+
+  std::auto_ptr<PulseShapeFitOOTPileupCorrection> psFitOOTpuCorr_;
+  
+  std::auto_ptr<PedestalSub> pedSubFxn_;
+
+  // S.Brandt Feb19 : Add a pointer to the HLT algo
+  std::auto_ptr<HcalDeterministicFit> hltOOTpuCorr_;
 };
 
 #endif

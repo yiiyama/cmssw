@@ -7,8 +7,12 @@
 #include "GeneratorInterface/Core/interface/ParameterCollector.h"
 #include "GeneratorInterface/Pythia8Interface/interface/P8RndmEngine.h"
 
+#include "HepMC/IO_AsciiParticles.h"
+
 #include <Pythia8/Pythia.h>
-#include <Pythia8/Pythia8ToHepMC.h>
+#include <Pythia8Plugins/HepMC2.h>
+
+class EvtGenDecays;
 
 namespace CLHEP {
   class HepRandomEngine;
@@ -45,7 +49,16 @@ namespace gen {
 	 
 	 unsigned int                   pythiaPylistVerbosity;
          bool                           pythiaHepMCVerbosity;
+         bool                           pythiaHepMCVerbosityParticles;
 	 unsigned int                   maxEventsToPrint;
+         HepMC::IO_AsciiParticles*      ascii_io;
+
+         // EvtGen plugin
+         //
+         bool useEvtGen;
+         EvtGenDecays* evtgenDecays;
+         std::string evtgenDecFile;
+         std::string evtgenPdlFile;
 
       private:
 

@@ -29,8 +29,9 @@
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 
 #include "DataFormats/HcalRecHit/interface/HcalRecHitCollections.h"
-#include "RecoLocalCalo/HcalRecAlgos/interface/HcalCaloFlagLabels.h"
-#include "Geometry/HcalTowerAlgo/src/HcalHardcodeGeometryData.h" // for eta bounds
+#include "DataFormats/METReco/interface/HcalCaloFlagLabels.h"
+#include "Geometry/CaloTopology/interface/HcalTopology.h"
+#include "Geometry/Records/interface/HcalRecNumberingRecord.h"
 
 #include "CondFormats/HcalObjects/interface/HcalChannelStatus.h"
 #include "CondFormats/HcalObjects/interface/HcalChannelQuality.h"
@@ -73,6 +74,7 @@ private:
   double GetSlope(const int ieta, const std::vector<double>& params); 
 
   // ----------member data ---------------------------
+  const HcalTopology* topo;
   edm::InputTag hfInputLabel_;
   edm::EDGetTokenT<HFRecHitCollection> tok_hf_;
   int  hfFlagBit_;
@@ -168,7 +170,7 @@ HcalRecHitReflagger::~HcalRecHitReflagger()
 void HcalRecHitReflagger::beginRun(const Run& r, const EventSetup& c)
 {
   edm::ESHandle<HcalChannelQuality> p;
-  c.get<HcalChannelQualityRcd>().get(p);
+  c.get<HcalChannelQualityRcd>().get("withTopo",p);
   const HcalChannelQuality& chanquality_(*p.product());
 
   std::vector<DetId> mydetids = chanquality_.getAllChannels();
@@ -193,6 +195,11 @@ HcalRecHitReflagger::produce(edm::Event& iEvent, const edm::EventSetup& iSetup)
        if (debug_>0) std::cout <<"Unable to find HFRecHitCollection with label '"<<hfInputLabel_<<"'"<<std::endl;
        return;
      }
+
+   //get the hcal topology
+   edm::ESHandle<HcalTopology> topo_;
+   iSetup.get<HcalRecNumberingRecord>().get(topo_);
+   topo = &*topo_;
 
    // prepare the output HF RecHit collection
    std::auto_ptr<HFRecHitCollection> pOut(new HFRecHitCollection());
@@ -281,7 +288,8 @@ bool HcalRecHitReflagger::CheckPET(const HFRecHit& hf)
   int ieta = id.ieta();
   double energy=hf.energy();
   int depth = id.depth();
-  double fEta=fabs(0.5*(theHFEtaBounds[abs(ieta)-29]+theHFEtaBounds[abs(ieta)-28]));
+  std::pair<double,double> etas = topo->etaRange(HcalForward,abs(ieta));
+  double fEta = 0.5*(etas.first + etas.second); // calculate eta as average of eta values at ieta boundaries
   double ET = energy/cosh(fEta);
   double threshold=0;
   
@@ -348,7 +356,8 @@ bool HcalRecHitReflagger::CheckS9S1(const HFRecHit& hf)
   int ieta = id.ieta();
   double energy=hf.energy();
   int depth = id.depth();
-  double fEta=fabs(0.5*(theHFEtaBounds[abs(ieta)-29]+theHFEtaBounds[abs(ieta)-28]));
+  std::pair<double,double> etas = topo->etaRange(HcalForward,ieta);
+  double fEta = 0.5*(etas.first + etas.second); // calculate eta as average of eta values at ieta boundaries
   double ET = energy/cosh(fEta);
   double threshold=0;
 

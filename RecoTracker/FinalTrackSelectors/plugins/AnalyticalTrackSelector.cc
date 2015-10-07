@@ -102,12 +102,19 @@ AnalyticalTrackSelector::AnalyticalTrackSelector( const edm::ParameterSet & cfg 
     max_lostHitFraction_.reserve(1);
     min_eta_.reserve(1);
     max_eta_.reserve(1);
+    forest_.reserve(1);
+    mvaType_.reserve(1);
+    useMVA_.reserve(1);
 
     produces<edm::ValueMap<float> >("MVAVals");
+    //foward compatibility
+    produces<MVACollection>("MVAValues");
     useAnyMVA_ = false;
-    forest_ = nullptr;
+    forest_[0] = nullptr;
+    if(cfg.exists("useAnyMVA")) useAnyMVA_ = cfg.getParameter<bool>("useAnyMVA");
 
     src_ = consumes<reco::TrackCollection>(cfg.getParameter<edm::InputTag>( "src" ));
+    hSrc_ = consumes<TrackingRecHitCollection>(cfg.getParameter<edm::InputTag>( "src" ));
     beamspot_ = consumes<reco::BeamSpot>(cfg.getParameter<edm::InputTag>( "beamspot" ));
     useVertices_ = cfg.getParameter<bool>( "useVertices" );
     useVtxError_ = cfg.getParameter<bool>( "useVtxError" );
@@ -189,6 +196,31 @@ AnalyticalTrackSelector::AnalyticalTrackSelector( const edm::ParameterSet & cfg 
       max_d0NoPV_.push_back(0.);
       max_z0NoPV_.push_back(0.);
     }
+
+    if(useAnyMVA_){
+      bool thisMVA = false;
+      if(cfg.exists("useMVA"))thisMVA = cfg.getParameter<bool>("useMVA");
+      useMVA_.push_back(thisMVA);
+      if(thisMVA){
+        double minVal = -1;
+        if(cfg.exists("minMVA"))minVal = cfg.getParameter<double>("minMVA");
+        min_MVA_.push_back(minVal);
+        mvaType_.push_back(cfg.exists("mvaType") ? cfg.getParameter<std::string>("mvaType") : "Detached");
+        forestLabel_.push_back(cfg.exists("GBRForestLabel") ? cfg.getParameter<std::string>("GBRForestLabel") : "MVASelectorIter0");
+        useMVAonly_.push_back(cfg.exists("useMVAonly") ? cfg.getParameter<bool>("useMVAonly") : false);
+      }else{
+        min_MVA_.push_back(-9999.0);
+        useMVAonly_.push_back(false);
+        mvaType_.push_back("Detached");
+        forestLabel_.push_back("MVASelectorIter0");
+      }
+    }else{
+      useMVA_.push_back(false);
+      useMVAonly_.push_back(false);
+      min_MVA_.push_back(-9999.0);
+      mvaType_.push_back("Detached");
+      forestLabel_.push_back("MVASelectorIter0");
+    }
     
     std::string alias( cfg.getParameter<std::string>( "@module_label" ) );
     produces<reco::TrackCollection>().setBranchAlias( alias + "Tracks");
@@ -251,6 +283,12 @@ void AnalyticalTrackSelector::run( edm::Event& evt, const edm::EventSetup& es ) 
 
   // Get tracks 
   evt.getByToken( src_, hSrcTrack );
+  // get hits in track..
+  Handle<TrackingRecHitCollection> hSrcHits;
+  evt.getByToken( hSrc_, hSrcHits );
+  const TrackingRecHitCollection & srcHits(*hSrcHits);
+
+
 
   selTracks_ = auto_ptr<TrackCollection>(new TrackCollection());
   rTracks_ = evt.getRefBeforePut<TrackCollection>();      
@@ -264,7 +302,7 @@ void AnalyticalTrackSelector::run( edm::Event& evt, const edm::EventSetup& es ) 
   if (copyTrajectories_) trackRefs_.resize(hSrcTrack->size());
 
   std::vector<float>  mvaVals_(hSrcTrack->size(),-99.f);
-  processMVA(evt,es,mvaVals_);
+  processMVA(evt,es,vertexBeamSpot,*(hVtx.product()),0,mvaVals_,true);
 
   // Loop over tracks
   size_t current = 0;
@@ -276,7 +314,7 @@ void AnalyticalTrackSelector::run( edm::Event& evt, const edm::EventSetup& es ) 
 
     float mvaVal = 0;
     if(useAnyMVA_)mvaVal = mvaVals_[current];
-    bool ok = select(0,vertexBeamSpot, trk, points, vterr, vzerr,mvaVal);
+    bool ok = select(0,vertexBeamSpot, srcHits, trk, points, vterr, vzerr,mvaVal);
     if (!ok) {
 
       LogTrace("TrackSelection") << "track with pt="<< trk.pt() << " NOT selected";
@@ -316,10 +354,11 @@ void AnalyticalTrackSelector::run( edm::Event& evt, const edm::EventSetup& es ) 
       TrackExtra & tx = selTrackExtras_->back();
       tx.setResiduals(trk.residuals());
       // TrackingRecHits
+      auto const firstHitIndex = selHits_->size();
       for( trackingRecHit_iterator hit = trk.recHitsBegin(); hit != trk.recHitsEnd(); ++ hit ) {
 	selHits_->push_back( (*hit)->clone() );
-	tx.add( TrackingRecHitRef( rHits_, selHits_->size() - 1) );
       }
+      tx.setHits( rHits_, firstHitIndex, selHits_->size() - firstHitIndex);
     }
     if (copyTrajectories_) {
       trackRefs_[current] = TrackRef(rTracks_, selTracks_->size() - 1);
@@ -332,7 +371,7 @@ void AnalyticalTrackSelector::run( edm::Event& evt, const edm::EventSetup& es ) 
     evt.getByToken(srcTraj_, hTraj);
     selTrajs_ = auto_ptr< vector<Trajectory> >(new vector<Trajectory>()); 
     rTrajectories_ = evt.getRefBeforePut< vector<Trajectory> >();
-    selTTAss_ = auto_ptr< TrajTrackAssociationCollection >(new TrajTrackAssociationCollection());
+    selTTAss_ = auto_ptr< TrajTrackAssociationCollection >(new TrajTrackAssociationCollection(rTrajectories_, rTracks_));
     for (size_t i = 0, n = hTraj->size(); i < n; ++i) {
       Ref< vector<Trajectory> > trajRef(hTraj, i);
       TrajTrackAssociationCollection::const_iterator match = hTTAss->find(trajRef);

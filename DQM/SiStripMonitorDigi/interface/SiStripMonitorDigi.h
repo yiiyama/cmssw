@@ -31,13 +31,11 @@ class EventWithHistory;
 class L1GlobalTriggerEvmReadoutRecord;
 class APVCyclePhaseCollection;
 
-class SiStripMonitorDigi : public thread_unsafe::DQMEDAnalyzer {
+class SiStripMonitorDigi : public DQMEDAnalyzer {
  public:
   explicit SiStripMonitorDigi(const edm::ParameterSet&);
   ~SiStripMonitorDigi();
   virtual void analyze(const edm::Event&, const edm::EventSetup&);
-  virtual void beginJob();
-  virtual void endJob();
   virtual void endRun(const edm::Run&, const edm::EventSetup&);
   virtual void beginLuminosityBlock(const edm::LuminosityBlock&, const edm::EventSetup&);
   virtual void endLuminosityBlock(const edm::LuminosityBlock&, const edm::EventSetup&);
@@ -173,7 +171,6 @@ class SiStripMonitorDigi : public thread_unsafe::DQMEDAnalyzer {
   bool subdetswitchapvcycleprofon;
   bool subdetswitchapvcycleth2on;
 
-  bool subdetswitchtotdigiproflson;
   bool subdetswitchtotdigifailureon;
 
   bool subdetswitchnapvshotson;

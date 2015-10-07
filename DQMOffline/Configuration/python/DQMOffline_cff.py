@@ -44,6 +44,9 @@ from DQMOffline.RecoB.dqmAnalyzer_cff import *
 from DQM.Physics.DQMPhysics_cff import *
 from Validation.RecoTau.DQMSequences_cfi import *
 from DQM.TrackingMonitorSource.TrackingSourceConfig_Tier0_cff import *
+# miniAOD DQM validation
+from Validation.RecoParticleFlow.miniAODDQM_cff import *
+from DQM.TrackingMonitor.tracksDQMMiniAOD_cff import *
 
 DQMOfflinePrePOG = cms.Sequence( TrackingDQMSourceTier0 *
                                  muonMonitors *
@@ -118,5 +121,10 @@ DQMOfflineJetMET = cms.Sequence( jetMETDQMOfflineSource )
 DQMOfflineEGamma = cms.Sequence( egammaDQMOffline )
 
 DQMOfflineBTag = cms.Sequence( bTagPlotsDATA )
-                                                                 
 
+HLTMonitoring = cms.Sequence( OfflineHLTMonitoring )
+                                                                 
+DQMOfflineMiniAOD = cms.Sequence( miniAODDQMSequence*jetMETDQMOfflineSourceMiniAOD*tracksDQMMiniAOD )
+
+DQMOfflineNoHWW = cms.Sequence(DQMOffline)
+DQMOfflineNoHWW.remove(hwwAnalyzer)

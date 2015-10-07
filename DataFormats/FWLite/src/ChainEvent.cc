@@ -199,6 +199,7 @@ ChainEvent::to(edm::RunNumber_t run, edm::EventNumber_t event)
 ChainEvent const&
 ChainEvent::toBegin()
 {
+   if (!size()) return *this;
    if (eventIndex_ != 0)
    {
       switchToFile(0);
@@ -278,6 +279,16 @@ edm::WrapperBase const* ChainEvent::getByProductID(edm::ProductID const& iID) co
   return event_->getByProductID(iID);
 }
 
+edm::WrapperBase const* ChainEvent::getThinnedProduct(edm::ProductID const& pid, unsigned int& key) const {
+  return event_->getThinnedProduct(pid, key);
+}
+
+void ChainEvent::getThinnedProducts(edm::ProductID const& pid,
+                                    std::vector<edm::WrapperBase const*>& foundContainers,
+                                    std::vector<unsigned int>& keys) const {
+  event_->getThinnedProducts(pid, foundContainers, keys);
+}
+
 bool
 ChainEvent::isValid() const
 {
@@ -291,6 +302,7 @@ ChainEvent::operator bool() const
 bool
 ChainEvent::atEnd() const
 {
+  if (!size()) return true;
   if (eventIndex_ == static_cast<Long64_t>(fileNames_.size())-1) {
     return event_->atEnd();
   }
@@ -300,7 +312,7 @@ ChainEvent::atEnd() const
 Long64_t
 ChainEvent::size() const
 {
-  return accumulatedSize_.back();
+  return accumulatedSize_.empty() ? 0 : accumulatedSize_.back();
 }
 
 edm::TriggerNames const&

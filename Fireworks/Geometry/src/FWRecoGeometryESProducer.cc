@@ -15,6 +15,7 @@
 #include "Geometry/DTGeometry/interface/DTLayer.h"
 #include "Geometry/RPCGeometry/interface/RPCGeometry.h"
 #include "Geometry/GEMGeometry/interface/GEMGeometry.h"
+#include "Geometry/GEMGeometry/interface/ME0Geometry.h"
 #include "Geometry/Records/interface/CaloGeometryRecord.h"
 #include "Geometry/TrackerGeometryBuilder/interface/TrackerGeometry.h"
 #include "Geometry/TrackerGeometryBuilder/interface/RectangularPixelTopology.h"
@@ -25,6 +26,7 @@
 #include "Geometry/CommonTopologies/interface/RectangularStripTopology.h"
 #include "Geometry/CommonTopologies/interface/TrapezoidalStripTopology.h"
 
+#include "TNamed.h"
 # define ADD_PIXEL_TOPOLOGY( rawid, detUnit )			\
   const PixelGeomDetUnit* det = dynamic_cast<const PixelGeomDetUnit*>( detUnit ); \
   if( det )							\
@@ -94,18 +96,8 @@ FWRecoGeometryESProducer::produce( const FWRecoGeometryRecord& record )
   addDTGeometry();
   addCSCGeometry();
   addRPCGeometry();
-
-  try 
-  {
-    addGEMGeometry();
-  }
-  catch( cms::Exception& exception )
-  {
-   edm::LogWarning("FWRecoGeometryProducerException")
-     << "Exception caught while building GEM geometry: " << exception.what()
-     << std::endl; 
-  }
-  
+  addGEMGeometry();
+  addME0Geometry();
   addCaloGeometry();
 
   m_fwGeometry->idToName.resize( m_current + 1 );
@@ -242,6 +234,14 @@ FWRecoGeometryESProducer::addRPCGeometry( void )
       m_fwGeometry->idToName[current].topology[2] = topo.pitch();
     }
   }
+
+
+  try {
+     RPCDetId id(1, 1, 4, 1, 1, 1, 1 );
+     m_geomRecord->slaveGeometry( detId );
+     m_fwGeometry->extraDet.Add(new TNamed("RE4", "RPC endcap station 4"));
+  }
+  catch (...) {}
 }
 
 void
@@ -251,26 +251,86 @@ FWRecoGeometryESProducer::addGEMGeometry( void )
   // GEM geometry
   //
   DetId detId( DetId::Muon, 4 );
-  const GEMGeometry* gemGeom = (const GEMGeometry*) m_geomRecord->slaveGeometry( detId );
-  for( auto it = gemGeom->etaPartitions().begin(),
-	   end = gemGeom->etaPartitions().end(); 
-       it != end; ++it )
-  {
-    const GEMEtaPartition* roll = (*it);
-    if( roll )
-    {
-      unsigned int rawid = (*it)->geographicalId().rawId();
-      unsigned int current = insert_id( rawid );
-      fillShapeAndPlacement( current, roll );
 
-      const StripTopology& topo = roll->specificTopology();
-      m_fwGeometry->idToName[current].topology[0] = topo.nstrips();
-      m_fwGeometry->idToName[current].topology[1] = topo.stripLength();
-      m_fwGeometry->idToName[current].topology[2] = topo.pitch();
+  try 
+  {
+    const GEMGeometry* gemGeom = (const GEMGeometry*) m_geomRecord->slaveGeometry( detId );
+    for(auto roll : gemGeom->etaPartitions())
+    { 
+      if( roll )
+      {
+	unsigned int rawid = roll->geographicalId().rawId();
+	unsigned int current = insert_id( rawid );
+	fillShapeAndPlacement( current, roll );
+
+	const StripTopology& topo = roll->specificTopology();
+	m_fwGeometry->idToName[current].topology[0] = topo.nstrips();
+	m_fwGeometry->idToName[current].topology[1] = topo.stripLength();
+	m_fwGeometry->idToName[current].topology[2] = topo.pitch();
+
+	float height = topo.stripLength()/2;
+	LocalPoint  lTop( 0., height, 0.);
+	LocalPoint  lBottom( 0., -height, 0.);
+	m_fwGeometry->idToName[current].topology[3] = roll->localPitch(lTop);
+	m_fwGeometry->idToName[current].topology[4] = roll->localPitch(lBottom);
+	m_fwGeometry->idToName[current].topology[5] = roll->npads();
+      }
     }
+
+    m_fwGeometry->extraDet.Add(new TNamed("GEM", "GEM muon detector"));
+    try {
+      GEMDetId id(1, 1, 2, 1, 1, 1 );
+      m_geomRecord->slaveGeometry( detId );
+      m_fwGeometry->extraDet.Add(new TNamed("GE2", "GEM endcap station 2"));
+    }
+    catch (...) {}
+
+  }
+  catch( cms::Exception &exception )
+  {
+    edm::LogInfo("FWRecoGeometry") << "failed to produce GEM geometry " << exception.what() << std::endl;
   }
 }
 
+void
+FWRecoGeometryESProducer::addME0Geometry( void )
+{
+  //                                                                                                                               
+  // ME0 geometry                                                                                                                  
+  //   
+
+  DetId detId( DetId::Muon, 5 );
+  try 
+  {
+    const ME0Geometry* me0Geom = (const ME0Geometry*) m_geomRecord->slaveGeometry( detId );
+    for(auto roll : me0Geom->etaPartitions())
+    { 
+      if( roll )
+      {
+	unsigned int rawid = roll->geographicalId().rawId();
+	unsigned int current = insert_id( rawid );
+	fillShapeAndPlacement( current, roll );
+	  
+	const StripTopology& topo = roll->specificTopology();
+	m_fwGeometry->idToName[current].topology[0] = topo.nstrips();
+	m_fwGeometry->idToName[current].topology[1] = topo.stripLength();
+	m_fwGeometry->idToName[current].topology[2] = topo.pitch();
+	
+	float height = topo.stripLength()/2;
+	LocalPoint  lTop( 0., height, 0.);
+	LocalPoint  lBottom( 0., -height, 0.);
+	m_fwGeometry->idToName[current].topology[3] = roll->localPitch(lTop);
+	m_fwGeometry->idToName[current].topology[4] = roll->localPitch(lBottom);
+	m_fwGeometry->idToName[current].topology[5] = roll->npads();
+      }
+    }
+    m_fwGeometry->extraDet.Add(new TNamed("ME0", "ME0 muon detector"));
+  }
+  catch( cms::Exception &exception )
+  {
+    edm::LogInfo("FWRecoGeometry") << "failed to produce ME0 geometry " << exception.what() << std::endl;
+  }
+}  
 
 void
 FWRecoGeometryESProducer::addPixelBarrelGeometry( void )

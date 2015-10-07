@@ -8,17 +8,12 @@ globalMixedTrackCandidates = FastSimulation.Tracking.TrackCandidateProducer_cfi.
 import RecoTracker.TrackProducer.CTFFinalFitWithMaterial_cfi
 # reco::Tracks
 globalMixedWithMaterialTracks = RecoTracker.TrackProducer.CTFFinalFitWithMaterial_cfi.ctfWithMaterialTracks.clone()
-# Merging
-ctfWithMaterialTracks = cms.EDProducer("FastTrackMerger",
-    TrackProducers = cms.VInputTag(cms.InputTag("globalMixedTrackCandidates"), cms.InputTag("globalMixedWithMaterialTracks"))
-)
 
 # The sequence
 ctfTracking = cms.Sequence(globalMixedSeeds*globalMixedTrackCandidates*globalMixedWithMaterialTracks*ctfWithMaterialTracks)
-globalMixedTrackCandidates.SeedProducer = cms.InputTag("globalMixedSeeds","GlobalMixed")
+globalMixedTrackCandidates.src = cms.InputTag("globalMixedSeeds")
 globalMixedTrackCandidates.TrackProducers = ['globalPixelWithMaterialTracks']
 globalMixedWithMaterialTracks.src = 'globalMixedTrackCandidates'
 globalMixedWithMaterialTracks.TTRHBuilder = 'WithoutRefit'
 globalMixedWithMaterialTracks.Fitter = 'KFFittingSmootherWithOutlierRejection'
 globalMixedWithMaterialTracks.Propagator = 'PropagatorWithMaterial'
-

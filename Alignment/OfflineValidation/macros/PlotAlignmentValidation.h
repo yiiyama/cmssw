@@ -72,6 +72,7 @@ TkOfflineVariables::TkOfflineVariables(std::string fileName, std::string baseDir
 class PlotAlignmentValidation {
 public:
   //PlotAlignmentValidation(TString *tmp);
+  PlotAlignmentValidation() {}
   PlotAlignmentValidation(const char *inputFile,std::string fileName="", int lineColor=1, int lineStyle=1);
   ~PlotAlignmentValidation();
   void loadFileList(const char *inputFile, std::string fileName="", int lineColor=2, int lineStyle=1);
@@ -86,35 +87,8 @@ public:
   void setOutputDir( std::string dir );
   void setTreeBaseDir( std::string dir = "TrackerOfflineValidationStandalone");
   
-  THStack* addHists(const char *selection, const TString &residType = "xPrime", TLegend **myLegend = 0, bool printModuleIds = false);//add hists fulfilling 'selection' on TTree; residType: xPrime,yPrime,xPrimeNorm,yPrimeNorm,x,y,xNorm; if (printModuleIds): cout DetIds
+  THStack* addHists(const TString& selection, const TString &residType = "xPrime", TLegend **myLegend = 0, bool printModuleIds = false);//add hists fulfilling 'selection' on TTree; residType: xPrime,yPrime,xPrimeNorm,yPrimeNorm,x,y,xNorm; if (printModuleIds): cout DetIds
   
-private : 
-  TList getTreeList();
-  std::string treeBaseDir;
-
-  bool useFit_;
-
-  std::pair<float,float> fitGauss(TH1 *hist,int color);
-  //void plotBoxOverview(TCanvas &c1, TList &treeList,std::string plot_Var1a,std::string plot_Var1b, std::string plot_Var2, Int_t filenumber,Int_t minHits);
-  //void plot1DDetailsSubDet(TCanvas &c1, TList &treeList, std::string plot_Var1a,std::string plot_Var1b, std::string plot_Var2, Int_t minHits);
-  //void plot1DDetailsBarrelLayer(TCanvas &c1, TList &treeList, std::string plot_Var1a,std::string plot_Var1b, Int_t minHits);
-  //void plot1DDetailsDiskWheel(TCanvas &c1, TList &treelist, std::string plot_Var1a,std::string plot_Var1b, Int_t minHits);
-  void plotSS(const std::string& options = "layers",const std::string& variable="");
-  void setHistStyle( TH1& hist,const char* titleX, const char* titleY, int color);
-  void setTitleStyle( TNamed& h,const char* titleX, const char* titleY, int subDetId);
-  void setNiceStyle();
-  void setCanvasStyle( TCanvas& canv );
-  void setLegendStyle( TLegend& leg );
-  TObject* findObjectFromCanvas(TCanvas* canv, const char* className, Int_t n=1);
-
-  TString outputFile;
-  std::string outputDir;
-  TList *sourcelist;
-  std::vector<TkOfflineVariables*> sourceList;
-  bool moreThanOneSource;
-  std::string fileNames[10];
-  int fileCounter;	
-
   // These are helpers for DMR plotting
 
   struct DMRPlotInfo {
@@ -133,6 +107,34 @@ private :
     TH1F* h2;
     bool firsthisto;
   };
+
+private : 
+  TList* getTreeList();
+  std::string treeBaseDir;
+
+  bool useFit_;
+
+  std::pair<float,float> fitGauss(TH1 *hist,int color);
+  //void plotBoxOverview(TCanvas &c1, TList &treeList,std::string plot_Var1a,std::string plot_Var1b, std::string plot_Var2, Int_t filenumber,Int_t minHits);
+  //void plot1DDetailsSubDet(TCanvas &c1, TList &treeList, std::string plot_Var1a,std::string plot_Var1b, std::string plot_Var2, Int_t minHits);
+  //void plot1DDetailsBarrelLayer(TCanvas &c1, TList &treeList, std::string plot_Var1a,std::string plot_Var1b, Int_t minHits);
+  //void plot1DDetailsDiskWheel(TCanvas &c1, TList &treelist, std::string plot_Var1a,std::string plot_Var1b, Int_t minHits);
+  void plotSS(const std::string& options = "layers",const std::string& variable="");
+  void setHistStyle( TH1& hist,const char* titleX, const char* titleY, int color);
+  void setTitleStyle( TNamed& h,const char* titleX, const char* titleY, int subDetId);
+  void setNiceStyle();
+  void setCanvasStyle( TCanvas& canv );
+  void setLegendStyle( TLegend& leg );
+  void scaleXaxis(TH1* hist, Int_t scale);
+  TObject* findObjectFromCanvas(TCanvas* canv, const char* className, Int_t n=1);
+
+  TString outputFile;
+  std::string outputDir;
+  TList *sourcelist;
+  std::vector<TkOfflineVariables*> sourceList;
+  bool moreThanOneSource;
+  std::string fileNames[10];
+  int fileCounter;	
 
   std::string getSelectionForDMRPlot(int minHits, int subDetId, int direction = 0, int layer = 0);
   std::string getVariableForDMRPlot(const std::string& histoname, const std::string& variable,

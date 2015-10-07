@@ -19,7 +19,7 @@ Monitoring source for track residuals on each detector module
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/Framework/interface/Run.h"
 #include <DQMServices/Core/interface/DQMEDAnalyzer.h>
-
+#include "Alignment/OfflineValidation/interface/TrackerValidationVariables.h"
 
 class MonitorElement;
 class DQMStore;
@@ -28,7 +28,7 @@ namespace edm { class Event; }
 
 typedef std::map<int32_t, MonitorElement *> HistoClass;
 
-class MonitorTrackResiduals : public thread_unsafe::DQMEDAnalyzer {
+class MonitorTrackResiduals : public DQMEDAnalyzer {
  public:
   // constructors and EDAnalyzer Methods
   explicit MonitorTrackResiduals(const edm::ParameterSet&);
@@ -54,5 +54,6 @@ class MonitorTrackResiduals : public thread_unsafe::DQMEDAnalyzer {
   unsigned long long m_cacheID_;
   bool ModOn;
   GenericTriggerEventFlag* genTriggerEventFlag_;
+  TrackerValidationVariables avalidator_;
 };
 #endif

@@ -43,6 +43,15 @@ namespace testPtr {
     virtual edm::WrapperBase const* getIt(edm::ProductID const&) const override {
       return hold_;
     }
+    virtual edm::WrapperBase const*
+    getThinnedProduct(edm::ProductID const&, unsigned int&) const override {return nullptr;}
+
+    virtual void
+    getThinnedProducts(edm::ProductID const& pid,
+                       std::vector<edm::WrapperBase const*>& wrappers,
+                       std::vector<unsigned int>& keys) const override { }
+
+
     virtual unsigned int transitionIndex_() const override {
     return 0U;
     }
@@ -143,14 +152,14 @@ void
 testPtrVector::get() {
   using namespace test_with_dictionaries;
   typedef std::vector<IntValue> IntCollection;
-  std::auto_ptr<IntCollection> ptr(new IntCollection);
+  std::unique_ptr<IntCollection> ptr(new IntCollection);
 
   ptr->push_back(0);
   ptr->push_back(1);
   ptr->push_back(2);
   ptr->push_back(3);
 
-  edm::Wrapper<IntCollection> wrapper(ptr);
+  edm::Wrapper<IntCollection> wrapper(std::move(ptr));
   TestGetter tester;
   tester.hold_ = &wrapper;
 

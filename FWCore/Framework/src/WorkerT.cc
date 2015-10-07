@@ -14,6 +14,7 @@
 #include "FWCore/Framework/interface/global/EDProducerBase.h"
 #include "FWCore/Framework/interface/global/EDFilterBase.h"
 #include "FWCore/Framework/interface/global/EDAnalyzerBase.h"
+#include "FWCore/Framework/interface/global/OutputModuleBase.h"
 
 #include "FWCore/Framework/interface/stream/EDProducerAdaptorBase.h"
 #include "FWCore/Framework/interface/stream/EDFilterAdaptorBase.h"
@@ -101,7 +102,7 @@ namespace edm{
 
   template<typename T>
   inline
-  WorkerT<T>::WorkerT(T* ed, ModuleDescription const& md, ExceptionToActionTable const* actions) :
+  WorkerT<T>::WorkerT(std::shared_ptr<T> ed, ModuleDescription const& md, ExceptionToActionTable const* actions) :
   Worker(md, actions),
   module_(ed) {
     assert(module_ != 0);
@@ -117,6 +118,42 @@ namespace edm{
   WorkerT<T>::implDo(EventPrincipal& ep, EventSetup const& c, ModuleCallingContext const* mcc) {
     std::shared_ptr<Worker> sentry(this,[&ep](Worker* obj) {obj->postDoEvent(ep);});
     return module_->doEvent(ep, c, activityRegistry(), mcc);
+  }
+  
+  template<typename T>
+  inline
+  bool
+  WorkerT<T>::implDoPrePrefetchSelection(StreamID id,
+                                          EventPrincipal& ep,
+                                         ModuleCallingContext const* mcc) {
+    return true;
+  }
+
+  template<>
+  inline
+  bool
+  WorkerT<OutputModule>::implDoPrePrefetchSelection(StreamID id,
+                                         EventPrincipal& ep,
+                                         ModuleCallingContext const* mcc) {
+    return module_->prePrefetchSelection(id,ep,mcc);
+  }
+
+  template<>
+  inline
+  bool
+  WorkerT<edm::one::OutputModuleBase>::implDoPrePrefetchSelection(StreamID id,
+                                                    EventPrincipal& ep,
+                                                    ModuleCallingContext const* mcc) {
+    return module_->prePrefetchSelection(id,ep,mcc);
+  }
+  
+  template<>
+  inline
+  bool
+  WorkerT<edm::global::OutputModuleBase>::implDoPrePrefetchSelection(StreamID id,
+                                                    EventPrincipal& ep,
+                                                    ModuleCallingContext const* mcc) {
+    return module_->prePrefetchSelection(id,ep,mcc);
   }
   
   template<typename T>
@@ -323,6 +360,15 @@ namespace edm{
     module_->doPostForkReacquireResources(iChildIndex, iNumberOfChildren);
   }
 
+
+  template<typename T>
+  inline
+  void
+  WorkerT<T>::implRegisterThinnedAssociations(ProductRegistry const& registry,
+                                               ThinnedAssociationsHelper& helper) {
+    module_->doRegisterThinnedAssociations(registry, helper);
+  }
+
   template<typename T>
   void WorkerT<T>::updateLookup(BranchType iBranchType,
                                 ProductHolderIndexHelper const& iHelper) {
@@ -352,6 +398,8 @@ namespace edm{
   Worker::Types WorkerT<edm::global::EDFilterBase>::moduleType() const { return Worker::kFilter;}
   template<>
   Worker::Types WorkerT<edm::global::EDAnalyzerBase>::moduleType() const { return Worker::kAnalyzer;}
+  template<>
+  Worker::Types WorkerT<edm::global::OutputModuleBase>::moduleType() const { return Worker::kOutputModule;}
 
 
   template<>
@@ -374,6 +422,7 @@ namespace edm{
   template class WorkerT<global::EDProducerBase>;
   template class WorkerT<global::EDFilterBase>;
   template class WorkerT<global::EDAnalyzerBase>;
+  template class WorkerT<global::OutputModuleBase>;
   template class WorkerT<stream::EDProducerAdaptorBase>;
   template class WorkerT<stream::EDFilterAdaptorBase>;
   template class WorkerT<stream::EDAnalyzerAdaptorBase>;

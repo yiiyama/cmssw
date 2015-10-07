@@ -134,8 +134,8 @@ void CaloTowersCreator::produce(edm::Event& e, const edm::EventSetup& c) {
   edm::ESHandle<HcalTopology> htopo;
   edm::ESHandle<CaloTowerConstituentsMap> cttopo;
   c.get<CaloGeometryRecord>().get(pG);
-  c.get<IdealGeometryRecord>().get(htopo);
-  c.get<IdealGeometryRecord>().get(cttopo);
+  c.get<HcalRecNumberingRecord>().get(htopo);
+  c.get<HcalRecNumberingRecord>().get(cttopo);
  
   // ECAL channel status map ****************************************
   edm::ESHandle<EcalChannelStatus> ecalChStatus;
@@ -144,11 +144,10 @@ void CaloTowersCreator::produce(edm::Event& e, const edm::EventSetup& c) {
  
   // HCAL channel status map ****************************************
   edm::ESHandle<HcalChannelQuality> hcalChStatus;    
-  c.get<HcalChannelQualityRcd>().get( hcalChStatus );
+  c.get<HcalChannelQualityRcd>().get( "withTopo", hcalChStatus );
+    
   const HcalChannelQuality* dbHcalChStatus = hcalChStatus.product();
-
-  if (!dbHcalChStatus->topo()) dbHcalChStatus->setTopo(htopo.product());
-
+    
   // Assignment of severity levels **********************************
   edm::ESHandle<HcalSeverityLevelComputer> hcalSevLvlComputerHndl;
   c.get<HcalSeverityLevelComputerRcd>().get(hcalSevLvlComputerHndl);

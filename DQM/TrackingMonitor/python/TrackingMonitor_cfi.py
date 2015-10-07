@@ -54,9 +54,12 @@ TrackMon = cms.EDAnalyzer("TrackingMonitor",
     doPrimaryVertexPlots                = cms.bool(False),
     doSeedParameterHistos               = cms.bool(False),
     doTrackCandHistos                   = cms.bool(False),
+    doAllTrackCandHistos                = cms.bool(False),
     doDCAPlots                          = cms.bool(False),
     doDCAwrtPVPlots                     = cms.bool(False),
     doDCAwrt000Plots                    = cms.bool(False),
+    doSIPPlots                          = cms.bool(False),
+    doEffFromHitPattern                 = cms.bool(False),
     doGeneralPropertiesPlots            = cms.bool(False),
     doHitPropertiesPlots                = cms.bool(False),              
 #    doGoodTrackPlots                    = cms.bool(False),
@@ -72,9 +75,9 @@ TrackMon = cms.EDAnalyzer("TrackingMonitor",
     doTrackPxPyPlots                    = cms.bool(False),
     doPUmonitoring                      = cms.bool(False),
     doPlotsVsBXlumi                     = cms.bool(False),
-    doPlotsVsGoodPVtx                   = cms.bool(False),
-                              
-                          
+    doPlotsVsGoodPVtx                   = cms.bool(True),
+    doHIPlots                           = cms.bool(False),                              
+    qualityString = cms.string("highPurity"),                      
     #which seed plots to do
     doSeedNumberHisto = cms.bool(False),
     doSeedLumiAnalysis = cms.bool(False),
@@ -369,5 +372,14 @@ TrackMon = cms.EDAnalyzer("TrackingMonitor",
 #    BXlumiBin = cms.int32(400),
 #    BXlumiMin = cms.double(2000),
 #    BXlumiMax = cms.double(6000),
-                          
+                ###############################
+################## FOR HI PLOTS#####################
+#######
+TransDCABins = cms.int32(100),
+TransDCAMin = cms.double(-8.0),
+TransDCAMax = cms.double(8.0),
+
+LongDCABins = cms.int32(100),
+LongDCAMin = cms.double(-8.0),
+LongDCAMax = cms.double(8.0),          
 )

@@ -36,6 +36,8 @@
 #include "Geometry/Records/interface/TrackerDigiGeometryRecord.h"
 #include "Geometry/TrackerNumberingBuilder/interface/GeometricDet.h"
 #include "Geometry/TrackerGeometryBuilder/interface/PixelGeomDetType.h"
+#include "DataFormats/TrackerCommon/interface/TrackerTopology.h"
+
 class SiPixelClusterModule {        
 
  public:
@@ -52,20 +54,13 @@ class SiPixelClusterModule {
   typedef edmNew::DetSet<SiPixelCluster>::const_iterator    ClusterIterator;
 
   /// Book histograms
-  void book(const edm::ParameterSet& iConfig, DQMStore::IBooker & iBooker, int type=0, bool twoD=true, bool reducedSet=false, bool isUpgrade=false);
+  void book(const edm::ParameterSet& iConfig, const edm::EventSetup& iSetup, DQMStore::IBooker & iBooker, int type=0, bool twoD=true, bool reducedSet=false, bool isUpgrade=false);
   /// Fill histograms
   int fill(const edmNew::DetSetVector<SiPixelCluster> & input, 
             const TrackerGeometry* tracker,
-	    MonitorElement* layer1,
-	    MonitorElement* layer2,
-	    MonitorElement* layer3,
-	    MonitorElement* layer4,
-	    MonitorElement* disk1pz,
-	    MonitorElement* disk2pz,
-	    MonitorElement* disk3pz,
-	    MonitorElement* disk1mz,
-	    MonitorElement* disk2mz,
-	    MonitorElement* disk3mz,
+	    std::vector<MonitorElement*>& layers,
+	    std::vector<MonitorElement*>& diskspz,
+	    std::vector<MonitorElement*>& disksmz,
             bool modon=true, 
 	    bool ladon=false, 
 	    bool layon=false, 
@@ -80,6 +75,7 @@ class SiPixelClusterModule {
   
  private:
 
+  const TrackerTopology *pTT;
   uint32_t id_;
   int ncols_;
   int nrows_;

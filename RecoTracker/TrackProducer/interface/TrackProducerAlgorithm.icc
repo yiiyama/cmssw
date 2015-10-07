@@ -119,11 +119,7 @@ TrackProducerAlgorithm<T>::runWithTrack(const TrackingGeometry * theG,
 			DetId hitId = (**i).geographicalId();
 
 			if(hitId.det() == DetId::Tracker) {
-			  if (hitId.subdetId() == StripSubdetector::TIB || 
-			      hitId.subdetId() == StripSubdetector::TOB ||
-			      hitId.subdetId() == StripSubdetector::TEC ||
-			      hitId.subdetId() == StripSubdetector::TID ){
-
+                          if(GeomDetEnumerators::isTrackerStrip((**i).det()->subDetector())) {
 			    SiStripDetId stripId(hitId);
 			    if (stripId.partnerDetId() == (*next)->geographicalId().rawId()){
 			      //yes they are parterns in a glued geometry.
@@ -175,6 +171,8 @@ TrackProducerAlgorithm<T>::runWithTrack(const TrackingGeometry * theG,
 
 	//set the algo_ member in order to propagate the old alog name
 	algo_=theT->algo();	
+	originalAlgo_ = theT->originalAlgo();
+	algoMask_ = theT->algoMask();
 
 	//=====  the hits are in the same order as they were in the track::extra.
         FitterCloner fc(theFitter,builder);        

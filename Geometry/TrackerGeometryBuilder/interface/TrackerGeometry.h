@@ -52,6 +52,9 @@ public:
   virtual const TrackerGeomDet*    idToDetUnit(DetId) const;
   virtual const TrackerGeomDet*    idToDet(DetId)     const;
 
+  const GeomDetEnumerators::SubDetector geomDetSubDetector(int subdet) const;
+  unsigned int numberOfLayers(int subdet) const;
+  bool isThere(GeomDetEnumerators::SubDetector subdet) const;
 
   unsigned int offsetDU(SubDetector sid) const { return theOffsetDU[sid];}
   unsigned int endsetDU(SubDetector sid) const { return theEndsetDU[sid];}
@@ -92,6 +95,8 @@ private:
   DetContainer      theTOBDets; // not owned: they're also in 'theDets'
   DetContainer      theTECDets; // not owned: they're also in 'theDets'
 
+  GeomDetEnumerators::SubDetector theSubDetTypeMap[6];
+  unsigned int theNumberOfLayers[6];
 
 };
 

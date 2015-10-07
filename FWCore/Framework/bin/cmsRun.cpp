@@ -54,6 +54,7 @@ static char const* const kHelpOpt = "help";
 static char const* const kHelpCommandOpt = "help,h";
 static char const* const kStrictOpt = "strict";
 
+constexpr unsigned int kDefaultSizeOfStackForThreadsInKB = 10*1024; //10MB
 // -----------------------------------------------
 namespace {
   class EventProcessorWithSentry {
@@ -90,15 +91,14 @@ namespace {
     bool callEndJob_;
   };
   
-  void setNThreads(unsigned int iNThreads,
-		   unsigned int iStackSize,
-                   std::unique_ptr<tbb::task_scheduler_init>& oPtr) {
+  unsigned int setNThreads(unsigned int iNThreads,
+                           unsigned int iStackSize,
+                           std::unique_ptr<tbb::task_scheduler_init>& oPtr) {
     //The TBB documentation doesn't explicitly say this, but when the task_scheduler_init's
     // destructor is run it does a 'wait all' for all tasks to finish and then shuts down all the threads.
     // This provides a clean synchronization point.
     //We have to destroy the old scheduler before starting a new one in order to
     // get tbb to actually switch the number of threads. If we do not, tbb stays at 1 threads
-    edm::LogInfo("ThreadSetup") <<"setting # threads "<<iNThreads;
 
     //stack size is given in KB but passed in as bytes
     iStackSize *= 1024;
@@ -106,10 +106,12 @@ namespace {
     oPtr.reset();
     if(0==iNThreads) {
       //Allow TBB to decide how many threads. This is normally the number of CPUs in the machine.
-      oPtr = std::unique_ptr<tbb::task_scheduler_init>{new tbb::task_scheduler_init{tbb::task_scheduler_init::automatic,iStackSize}};
-    } else {
-      oPtr = std::unique_ptr<tbb::task_scheduler_init>{new tbb::task_scheduler_init{static_cast<int>(iNThreads),iStackSize}};
+      iNThreads = tbb::task_scheduler_init::default_num_threads();
     }
+    oPtr = std::unique_ptr<tbb::task_scheduler_init>{new tbb::task_scheduler_init{static_cast<int>(iNThreads),iStackSize}};
+    edm::LogInfo("ThreadSetup") <<"setting # threads "<<iNThreads;
+
+    return iNThreads;
   }
 }
 
@@ -230,14 +232,15 @@ int main(int argc, char* argv[]) {
         return 0;
       }
       
+      unsigned int nThreadsOnCommandLine{0};
       if(vm.count(kNumberOfThreadsOpt)) {
         setNThreadsOnCommandLine=true;
         unsigned int nThreads = vm[kNumberOfThreadsOpt].as<unsigned int>();
-        unsigned int stackSize=0;
+        unsigned int stackSize=kDefaultSizeOfStackForThreadsInKB;
         if(vm.count(kSizeOfStackForThreadOpt)) {
-	  stackSize=vm[kSizeOfStackForThreadOpt].as<unsigned int>();
-	}
-        setNThreads(nThreads,stackSize,tsiPtr);
+          stackSize=vm[kSizeOfStackForThreadOpt].as<unsigned int>();
+        }
+        nThreadsOnCommandLine=setNThreads(nThreads,stackSize,tsiPtr);
       }
 
       if (!vm.count(kParameterSetOpt)) {
@@ -293,11 +296,16 @@ int main(int argc, char* argv[]) {
             auto const& ops = pset->getUntrackedParameterSet("options");
             if(ops.existsAs<unsigned int>("numberOfThreads",false)) {
               unsigned int nThreads = ops.getUntrackedParameter<unsigned int>("numberOfThreads");
-              unsigned int stackSize=0;
-              if(ops.existsAs<unsigned int>("sizeOfStackForThreadsInKB",0)) {
+              unsigned int stackSize=kDefaultSizeOfStackForThreadsInKB;
+              if(ops.existsAs<unsigned int>("sizeOfStackForThreadsInKB",false)) {
                 stackSize = ops.getUntrackedParameter<unsigned int>("sizeOfStackForThreadsInKB");
               }
-              setNThreads(nThreads,stackSize,tsiPtr);
+              const auto nThreadsUsed = setNThreads(nThreads,stackSize,tsiPtr);
+              if(nThreadsUsed != nThreads) {
+                auto newOp = pset->getUntrackedParameterSet("options");
+                newOp.addUntrackedParameter<unsigned int>("numberOfThreads",nThreadsUsed);
+                pset->insertParameterSet(true,"options",edm::ParameterSetEntry(newOp,false));
+              }
             }
           }
         } else {
@@ -307,15 +315,14 @@ int main(int argc, char* argv[]) {
           if(pset->existsAs<edm::ParameterSet>("options",false)) {
             newOp = pset->getUntrackedParameterSet("options");
           }
-          unsigned int nThreads = vm[kNumberOfThreadsOpt].as<unsigned int>();
-          newOp.addUntrackedParameter<unsigned int>("numberOfThreads",nThreads);
+          newOp.addUntrackedParameter<unsigned int>("numberOfThreads",nThreadsOnCommandLine);
           pset->insertParameterSet(true,"options",edm::ParameterSetEntry(newOp,false));
         }
       }
 
       context = "Initializing default service configurations";
       std::vector<std::string> defaultServices;
-      defaultServices.reserve(7);
+      defaultServices.reserve(8);
       defaultServices.push_back("MessageLogger");
       defaultServices.push_back("InitRootHandlers");
 #ifdef linux
@@ -325,6 +332,9 @@ int main(int argc, char* argv[]) {
       defaultServices.push_back("AdaptorConfig");
       defaultServices.push_back("SiteLocalConfigService");
       defaultServices.push_back("StatisticsSenderService");
+      // This default is disabled pending widespread testing.  See conversation
+      // in PR #10056
+      //defaultServices.push_back("CondorStatusService");
 
       // Default parameters will be used for the default services
       // if they are not overridden from the configuration files.

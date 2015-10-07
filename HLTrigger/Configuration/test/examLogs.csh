@@ -2,18 +2,18 @@
 
 set base = RelVal_HLT
 
-foreach gtag ( STARTUP DATA )
+foreach gtag ( MC DATA )
 
   echo
   echo $gtag
 
-  foreach table ( GRun PIon 2014 HIon FULL )
+  foreach table ( GRun 50nsGRun HIon PIon 25ns14e33_v1 50ns_5e33_v1 Fake )
 
     echo
     set name = ${table}_${gtag}
     echo $name
 
-    foreach task ( ONLINE_HLT RelVal_HLT_Reco RelVal_HLT2 )
+    foreach task ( OnLine_HLT RelVal_HLT_Reco RelVal_HLT2 )
 
       echo
       echo "Compare  ${base}_${name} to  ${task}_${name}"

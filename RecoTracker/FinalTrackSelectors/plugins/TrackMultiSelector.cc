@@ -13,7 +13,7 @@
 #include <memory>
 #include <algorithm>
 #include <map>
-#include "FWCore/Framework/interface/EDProducer.h"
+#include "FWCore/Framework/interface/stream/EDProducer.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/Utilities/interface/InputTag.h"
@@ -29,7 +29,7 @@
 #include "DataFormats/BeamSpot/interface/BeamSpot.h"
 
 
-    class dso_hidden TrackMultiSelector : public edm::EDProducer {
+    class dso_hidden TrackMultiSelector : public edm::stream::EDProducer<> {
         private:
             struct Block {
                 std::pair<double,double> pt;
@@ -256,10 +256,13 @@ void TrackMultiSelector::produce( edm::Event& evt, const edm::EventSetup& es )
         TrackExtra & tx = selTrackExtras_[where]->back();
 	tx.setResiduals(trk.residuals());
         // TrackingRecHits
+        auto& selHitsWhere = selHits_[where];
+        auto const firstHitIndex = selHitsWhere->size();
         for( trackingRecHit_iterator hit = trk.recHitsBegin(); hit != trk.recHitsEnd(); ++ hit ) {
-            selHits_[where]->push_back( (*hit)->clone() );
-            tx.add( TrackingRecHitRef( rHits_[where], selHits_[where]->size() - 1) );
+            selHitsWhere->push_back( (*hit)->clone() );
         }
+        tx.setHits( rHits_[where], firstHitIndex, selHitsWhere->size() - firstHitIndex);
+
         if (copyTrajectories_) {
             whereItWent_[current] = std::pair<short, reco::TrackRef>(where, TrackRef(rTracks_[where], selTracks_[where]->size() - 1));
         }

@@ -8,10 +8,8 @@ output stream.
 
 ----------------------------------------------------------------------*/
 
-#include "DataFormats/Provenance/interface/BranchChildren.h"
 #include "DataFormats/Provenance/interface/BranchID.h"
 #include "DataFormats/Provenance/interface/BranchIDList.h"
-#include "DataFormats/Provenance/interface/ParentageID.h"
 #include "DataFormats/Provenance/interface/ModuleDescription.h"
 #include "DataFormats/Provenance/interface/SelectedProducts.h"
 
@@ -25,7 +23,10 @@ output stream.
 
 #include "FWCore/ParameterSet/interface/ParameterSetfwd.h"
 
+#include "FWCore/Utilities/interface/EDGetToken.h"
+
 #include <array>
+#include <memory>
 #include <string>
 #include <vector>
 #include <map>
@@ -37,6 +38,8 @@ namespace edm {
   class ModuleCallingContext;
   class PreallocationConfiguration;
   class ActivityRegistry;
+  class ProductRegistry;
+  class ThinnedAssociationsHelper;
 
   namespace maker {
     template<typename T> class ModuleHolderT;
@@ -67,7 +70,7 @@ namespace edm {
 
     bool selected(BranchDescription const& desc) const;
 
-    void selectProducts(ProductRegistry const& preg);
+    void selectProducts(ProductRegistry const& preg, ThinnedAssociationsHelper const&);
     std::string const& processName() const {return process_name_;}
     SelectedProductsForBranchType const& keptProducts() const {return keptProducts_;}
     std::array<bool, NumBranchTypes> const& hasNewlyDroppedBranch() const {return hasNewlyDroppedBranch_;}
@@ -77,11 +80,11 @@ namespace edm {
     static const std::string& baseType();
     static void prevalidate(ConfigurationDescriptions& );
 
-    BranchChildren const& branchChildren() const {return branchChildren_;}
-
     bool wantAllEvents() const {return wantAllEvents_;}
 
-    BranchIDLists const* branchIDLists() const;
+    BranchIDLists const* branchIDLists();
+
+    ThinnedAssociationsHelper const* thinnedAssociationsHelper() const;
 
   protected:
 
@@ -89,7 +92,7 @@ namespace edm {
     // need to clean up the use of Event and EventPrincipal, to avoid
     // creation of multiple Event objects when handling a single
     // event.
-    Trig getTriggerResults(EventPrincipal const& ep, ModuleCallingContext const*) const;
+    Trig getTriggerResults(EDGetTokenT<TriggerResults> const& token, EventPrincipal const& ep, ModuleCallingContext const*) const;
 
     ModuleDescription const& description() const;
     ModuleDescription const& moduleDescription() const { return moduleDescription_;
@@ -97,7 +100,7 @@ namespace edm {
 
     ParameterSetID selectorConfig() const { return selector_config_id_; }
 
-    void doPreallocate(PreallocationConfiguration const&) {}
+    void doPreallocate(PreallocationConfiguration const&);
 
     void doBeginJob();
     void doEndJob();
@@ -151,9 +154,10 @@ namespace edm {
     ModuleDescription moduleDescription_;
 
     bool wantAllEvents_;
-    mutable detail::TriggerResultsBasedEventSelector selectors_;
+    std::vector<detail::TriggerResultsBasedEventSelector> selectors_;
     // ID of the ParameterSet that configured the event selector
     // subsystem.
+    ParameterSet selectEvents_;
     ParameterSetID selector_config_id_;
 
     // needed because of possible EDAliases.
@@ -162,10 +166,8 @@ namespace edm {
     std::unique_ptr<BranchIDLists> branchIDLists_;
     BranchIDLists const* origBranchIDLists_;
 
-    typedef std::map<BranchID, std::set<ParentageID> > BranchParents;
-    BranchParents branchParents_;
-
-    BranchChildren branchChildren_;
+    std::unique_ptr<ThinnedAssociationsHelper> thinnedAssociationsHelper_;
+    std::map<BranchID, bool> keepAssociation_;
 
     SharedResourcesAcquirer resourceAcquirer_;
     std::mutex mutex_;
@@ -180,6 +182,8 @@ namespace edm {
     void doRespondToCloseInputFile(FileBlock const& fb);
     void doPreForkReleaseResources();
     void doPostForkReacquireResources(unsigned int iChildIndex, unsigned int iNumberOfChildren);
+    void doRegisterThinnedAssociations(ProductRegistry const&,
+                                       ThinnedAssociationsHelper&) { }
 
     std::string workerType() const {return "WorkerT<OutputModule>";}
 
@@ -196,6 +200,8 @@ namespace edm {
     virtual void reallyCloseFile();
 
     void registerProductsAndCallbacks(OutputModule const*, ProductRegistry const*) {}
+    
+    bool prePrefetchSelection(StreamID id, EventPrincipal const&, ModuleCallingContext const*);
 
     /// Ask the OutputModule if we should end the current file.
     virtual bool shouldWeCloseFile() const {return false;}
@@ -219,12 +225,13 @@ namespace edm {
 
     virtual void reallyOpenFile() {}
 
+    void keepThisBranch(BranchDescription const& desc,
+                        std::map<BranchID, BranchDescription const*>& trueBranchIDToKeptBranchDesc,
+                        std::set<BranchID>& keptProductsInEvent);
+
     void setModuleDescription(ModuleDescription const& md) {
       moduleDescription_ = md;
     }
-
-    void updateBranchParents(EventPrincipal const& ep);
-    void fillDependencyGraph();
 
     bool limitReached() const {return remainingEvents_ == 0;}
   };

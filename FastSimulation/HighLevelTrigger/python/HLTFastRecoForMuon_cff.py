@@ -44,13 +44,13 @@ hltL3NoFiltersTrajSeedIOHit = TSG.l3seeds("IOHitCascade")
 ## Make one TrackCand for each seeder
 from FastSimulation.Muons.TrackCandidateFromL2_cfi import *
 hltL3TrackCandidateFromL2OIState = FastSimulation.Muons.TrackCandidateFromL2_cfi.hltL3TrackCandidateFromL2.clone()
-hltL3TrackCandidateFromL2OIState.SeedProducer = "hltL3TrajSeedOIState"
+hltL3TrackCandidateFromL2OIState.src = "hltL3TrajSeedOIState"
 hltL3TrackCandidateFromL2OIHit = FastSimulation.Muons.TrackCandidateFromL2_cfi.hltL3TrackCandidateFromL2.clone()
-hltL3TrackCandidateFromL2OIHit.SeedProducer = "hltL3TrajSeedOIHit"    
+hltL3TrackCandidateFromL2OIHit.src = "hltL3TrajSeedOIHit"    
 hltL3TrackCandidateFromL2IOHit = FastSimulation.Muons.TrackCandidateFromL2_cfi.hltL3TrackCandidateFromL2.clone()
-hltL3TrackCandidateFromL2IOHit.SeedProducer = "hltL3TrajSeedIOHit"
+hltL3TrackCandidateFromL2IOHit.src = "hltL3TrajSeedIOHit"
 hltL3TrackCandidateFromL2NoVtx = FastSimulation.Muons.TrackCandidateFromL2_cfi.hltL3TrackCandidateFromL2.clone()
-hltL3TrackCandidateFromL2NoVtx.SeedProducer = "hltL3TrajectorySeedNoVtx"
+hltL3TrackCandidateFromL2NoVtx.src = "hltL3TrajectorySeedNoVtx"
 
 
 # (Not-so) Regional Tracking - needed because the TrackCandidateProducer needs the seeds
@@ -59,40 +59,24 @@ hltL3TrackCandidateFromL2NoVtx.SeedProducer = "hltL3TrajectorySeedNoVtx"
 # Paths that need a regional pixel seed (which accesses Pixel RecHits in its usual implementation)
 hltJpsiTkPixelSeedFromL3Candidate = FastSimulation.HighLevelTrigger.DummyModule_cfi.dummyModule.clone()
 hltCkfTrackCandidatesJpsiTk = cms.Sequence(globalPixelTracking)
-# Take all pixel tracks (pTMin>1GeV, nHits>=8)
-hltCtfWithMaterialTracksJpsiTk = cms.EDProducer("FastTrackMerger",
-    SaveTracksOnly = cms.untracked.bool(True),
-    TrackProducers = cms.VInputTag(cms.InputTag("globalPixelWithMaterialTracks"),
-                                   cms.InputTag("globalPixelTrackCandidates")),
-    ptMin = cms.untracked.double(1.0),
-    minHits = cms.untracked.uint32(8)
-)
 
 # CKFTrackCandidateMaker
 import FastSimulation.Tracking.TrackCandidateProducer_cfi
 
 hltMuCkfTrackCandidates = FastSimulation.Tracking.TrackCandidateProducer_cfi.trackCandidateProducer.clone()
-hltMuCkfTrackCandidates.SeedProducer = cms.InputTag("hltMuTrackSeeds")
-hltMuCkfTrackCandidates.TrackProducers = []
-hltMuCkfTrackCandidates.SeedCleaning = True
+hltMuCkfTrackCandidates.src = cms.InputTag("hltMuTrackSeeds")
 hltMuCkfTrackCandidates.SplitHits = False
 
 hltMuTrackJpsiCkfTrackCandidates = FastSimulation.Tracking.TrackCandidateProducer_cfi.trackCandidateProducer.clone()
-hltMuTrackJpsiCkfTrackCandidates.SeedProducer = cms.InputTag("hltMuTrackJpsiTrackSeeds")
-hltMuTrackJpsiCkfTrackCandidates.TrackProducers = []
-hltMuTrackJpsiCkfTrackCandidates.SeedCleaning = True
+hltMuTrackJpsiCkfTrackCandidates.src = cms.InputTag("hltMuTrackJpsiTrackSeeds")
 hltMuTrackJpsiCkfTrackCandidates.SplitHits = False
 
 hltMuTrackJpsiEffCkfTrackCandidates = FastSimulation.Tracking.TrackCandidateProducer_cfi.trackCandidateProducer.clone()
-hltMuTrackJpsiEffCkfTrackCandidates.SeedProducer = cms.InputTag("hltMuTrackJpsiTrackSeeds")
-hltMuTrackJpsiEffCkfTrackCandidates.TrackProducers = []
-hltMuTrackJpsiEffCkfTrackCandidates.SeedCleaning = True
+hltMuTrackJpsiEffCkfTrackCandidates.src = cms.InputTag("hltMuTrackJpsiTrackSeeds")
 hltMuTrackJpsiEffCkfTrackCandidates.SplitHits = False
 
 hltMuTrackCkfTrackCandidatesOnia = FastSimulation.Tracking.TrackCandidateProducer_cfi.trackCandidateProducer.clone()
-hltMuTrackCkfTrackCandidatesOnia.SeedProducer = cms.InputTag("hltMuTrackTrackSeedsOnia")
-hltMuTrackCkfTrackCandidatesOnia.TrackProducers = []
-hltMuTrackCkfTrackCandidatesOnia.SeedCleaning = True
+hltMuTrackCkfTrackCandidatesOnia.src = cms.InputTag("hltMuTrackTrackSeedsOnia")
 hltMuTrackCkfTrackCandidatesOnia.SplitHits = False
 
 # CTF track fit with material
