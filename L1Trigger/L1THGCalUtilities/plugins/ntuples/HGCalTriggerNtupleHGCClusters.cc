@@ -26,6 +26,7 @@ class HGCalTriggerNtupleHGCClusters : public HGCalTriggerNtupleBase
     edm::EDGetToken clusters_token_, multiclusters_token_;
     HGCalTriggerTools triggerTools_;
 
+    TString prefix_;
 
     int cl_n_ ;
     std::vector<uint32_t> cl_id_;
@@ -62,19 +63,21 @@ initialize(TTree& tree, const edm::ParameterSet& conf, edm::ConsumesCollector&& 
   clusters_token_ = collector.consumes<l1t::HGCalClusterBxCollection>(conf.getParameter<edm::InputTag>("Clusters"));
   multiclusters_token_ = collector.consumes<l1t::HGCalMulticlusterBxCollection>(conf.getParameter<edm::InputTag>("Multiclusters"));
 
-  tree.Branch("cl_n", &cl_n_, "cl_n/I");
-  tree.Branch("cl_id", &cl_id_);
-  tree.Branch("cl_mipPt", &cl_mipPt_);
-  tree.Branch("cl_pt", &cl_pt_);
-  tree.Branch("cl_energy", &cl_energy_);
-  tree.Branch("cl_eta", &cl_eta_);
-  tree.Branch("cl_phi", &cl_phi_);
-  tree.Branch("cl_layer", &cl_layer_);
-  tree.Branch("cl_subdet", &cl_subdet_);
-  tree.Branch("cl_cells_n", &cl_cells_n_);
-  tree.Branch("cl_cells_id", &cl_cells_id_);
-  tree.Branch("cl_multicluster_id", &cl_multicluster_id_);
-  tree.Branch("cl_multicluster_pt", &cl_multicluster_pt_);
+  prefix_ = conf.getUntrackedParameter<std::string>("Prefix", "cl");
+
+  tree.Branch(prefix_ + "_n", &cl_n_, prefix_ + "_n/I");
+  tree.Branch(prefix_ + "_id", &cl_id_);
+  tree.Branch(prefix_ + "_mipPt", &cl_mipPt_);
+  tree.Branch(prefix_ + "_pt", &cl_pt_);
+  tree.Branch(prefix_ + "_energy", &cl_energy_);
+  tree.Branch(prefix_ + "_eta", &cl_eta_);
+  tree.Branch(prefix_ + "_phi", &cl_phi_);
+  tree.Branch(prefix_ + "_layer", &cl_layer_);
+  tree.Branch(prefix_ + "_subdet", &cl_subdet_);
+  tree.Branch(prefix_ + "_cells_n", &cl_cells_n_);
+  tree.Branch(prefix_ + "_cells_id", &cl_cells_id_);
+  tree.Branch(prefix_ + "_multicluster_id", &cl_multicluster_id_);
+  tree.Branch(prefix_ + "_multicluster_pt", &cl_multicluster_pt_);
 }
 
 void

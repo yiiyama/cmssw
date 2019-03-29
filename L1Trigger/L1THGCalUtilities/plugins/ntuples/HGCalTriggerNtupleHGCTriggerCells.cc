@@ -3,14 +3,17 @@
 #include "SimDataFormats/CaloHit/interface/PCaloHitContainer.h"
 #include "SimDataFormats/CaloTest/interface/HGCalTestNumbering.h"
 #include "Geometry/HcalCommonData/interface/HcalHitRelabeller.h"
+#include "Geometry/Records/interface/CaloGeometryRecord.h"
 #include "DataFormats/L1THGCal/interface/HGCalTriggerCell.h"
 #include "DataFormats/L1THGCal/interface/HGCalMulticluster.h"
 #include "DataFormats/ForwardDetId/interface/HGCalDetId.h"
-#include "Geometry/Records/interface/CaloGeometryRecord.h"
+#include "DataFormats/Common/interface/AssociationMap.h"
+#include "DataFormats/Common/interface/OneToMany.h"
+#include "SimDataFormats/CaloAnalysis/interface/CaloParticleFwd.h"
+#include "SimDataFormats/CaloAnalysis/interface/CaloParticle.h"
 #include "L1Trigger/L1THGCal/interface/HGCalTriggerGeometryBase.h"
 #include "L1Trigger/L1THGCalUtilities/interface/HGCalTriggerNtupleBase.h"
 #include "L1Trigger/L1THGCal/interface/HGCalTriggerTools.h"
-
 
 
 class HGCalTriggerNtupleHGCTriggerCells : public HGCalTriggerNtupleBase
@@ -31,7 +34,9 @@ class HGCalTriggerNtupleHGCTriggerCells : public HGCalTriggerNtupleBase
 
     edm::EDGetToken trigger_cells_token_, multiclusters_token_;
     edm::EDGetToken simhits_ee_token_, simhits_fh_token_, simhits_bh_token_;
+    edm::EDGetToken caloparticles_map_token_;
     bool fill_simenergy_;
+    bool fill_truthmap_;
     bool filter_cells_in_multiclusters_;
     double keV2fC_;
     std::vector<double> fcPerMip_;
@@ -39,6 +44,7 @@ class HGCalTriggerNtupleHGCTriggerCells : public HGCalTriggerNtupleBase
     std::vector<double> thicknessCorrections_;
     edm::ESHandle<HGCalTriggerGeometryBase> geometry_;
 
+    TString prefix_;
 
     int tc_n_ ;
     std::vector<uint32_t> tc_id_;
@@ -63,6 +69,9 @@ class HGCalTriggerNtupleHGCTriggerCells : public HGCalTriggerNtupleBase
     std::vector<uint32_t> tc_cluster_id_;
     std::vector<uint32_t> tc_multicluster_id_;
     std::vector<float> tc_multicluster_pt_;
+    std::vector<int> tc_genparticle_index_;
+
+    typedef edm::AssociationMap<edm::OneToMany<CaloParticleCollection, l1t::HGCalTriggerCellBxCollection>> CaloToCellsMap;
 
 };
 
@@ -74,6 +83,7 @@ DEFINE_EDM_PLUGIN(HGCalTriggerNtupleFactory,
 HGCalTriggerNtupleHGCTriggerCells::
 HGCalTriggerNtupleHGCTriggerCells(const edm::ParameterSet& conf):HGCalTriggerNtupleBase(conf),
   fill_simenergy_(conf.getParameter<bool>("FillSimEnergy")),
+  fill_truthmap_(conf.getParameter<bool>("FillTruthMap")),
   filter_cells_in_multiclusters_(conf.getParameter<bool>("FilterCellsInMulticlusters"))
 {
   fill_simenergy_ = conf.getParameter<bool>("FillSimEnergy");
@@ -98,29 +108,37 @@ initialize(TTree& tree, const edm::ParameterSet& conf, edm::ConsumesCollector&& 
     simhits_bh_token_ = collector.consumes<edm::PCaloHitContainer>(conf.getParameter<edm::InputTag>("bhSimHits"));
   }
 
-  tree.Branch("tc_n", &tc_n_, "tc_n/I");
-  tree.Branch("tc_id", &tc_id_);
-  tree.Branch("tc_subdet", &tc_subdet_);
-  tree.Branch("tc_zside", &tc_side_);
-  tree.Branch("tc_layer", &tc_layer_);
-  tree.Branch("tc_wafer", &tc_wafer_);
-  tree.Branch("tc_wafertype", &tc_wafertype_);
-  tree.Branch("tc_cell", &tc_cell_);
-  tree.Branch("tc_data", &tc_data_);
-  tree.Branch("tc_uncompressedCharge", &tc_uncompressedCharge_);
-  tree.Branch("tc_compressedCharge", &tc_compressedCharge_);
-  tree.Branch("tc_pt", &tc_pt_);
-  tree.Branch("tc_mipPt", &tc_mipPt_);
-  tree.Branch("tc_energy", &tc_energy_);
-  if(fill_simenergy_) tree.Branch("tc_simenergy", &tc_simenergy_);
-  tree.Branch("tc_eta", &tc_eta_);
-  tree.Branch("tc_phi", &tc_phi_);
-  tree.Branch("tc_x", &tc_x_);
-  tree.Branch("tc_y", &tc_y_);
-  tree.Branch("tc_z", &tc_z_);
-  tree.Branch("tc_cluster_id", &tc_cluster_id_);
-  tree.Branch("tc_multicluster_id", &tc_multicluster_id_);
-  tree.Branch("tc_multicluster_pt", &tc_multicluster_pt_);
+  if (fill_truthmap_)
+    caloparticles_map_token_ = collector.consumes<CaloToCellsMap>(conf.getParameter<edm::InputTag>("caloParticlesToCells"));
+
+  prefix_ = conf.getUntrackedParameter<std::string>("Prefix", "tc");
+
+  tree.Branch(prefix_ + "_n", &tc_n_, prefix_ + "_n/I");
+  tree.Branch(prefix_ + "_id", &tc_id_);
+  tree.Branch(prefix_ + "_subdet", &tc_subdet_);
+  tree.Branch(prefix_ + "_zside", &tc_side_);
+  tree.Branch(prefix_ + "_layer", &tc_layer_);
+  tree.Branch(prefix_ + "_wafer", &tc_wafer_);
+  tree.Branch(prefix_ + "_wafertype", &tc_wafertype_);
+  tree.Branch(prefix_ + "_cell", &tc_cell_);
+  tree.Branch(prefix_ + "_data", &tc_data_);
+  tree.Branch(prefix_ + "_uncompressedCharge", &tc_uncompressedCharge_);
+  tree.Branch(prefix_ + "_compressedCharge", &tc_compressedCharge_);
+  tree.Branch(prefix_ + "_pt", &tc_pt_);
+  tree.Branch(prefix_ + "_mipPt", &tc_mipPt_);
+  tree.Branch(prefix_ + "_energy", &tc_energy_);
+  if (fill_simenergy_)
+    tree.Branch(prefix_ + "_simenergy", &tc_simenergy_);
+  tree.Branch(prefix_ + "_eta", &tc_eta_);
+  tree.Branch(prefix_ + "_phi", &tc_phi_);
+  tree.Branch(prefix_ + "_x", &tc_x_);
+  tree.Branch(prefix_ + "_y", &tc_y_);
+  tree.Branch(prefix_ + "_z", &tc_z_);
+  tree.Branch(prefix_ + "_cluster_id", &tc_cluster_id_);
+  tree.Branch(prefix_ + "_multicluster_id", &tc_multicluster_id_);
+  tree.Branch(prefix_ + "_multicluster_pt", &tc_multicluster_pt_);
+  if (fill_truthmap_)
+    tree.Branch(prefix_ + "_genparticle_index", &tc_genparticle_index_);
 
 }
 
@@ -147,6 +165,16 @@ fill(const edm::Event& e, const edm::EventSetup& es)
   std::unordered_map<uint32_t, double> simhits_fh;  
   std::unordered_map<uint32_t, double> simhits_bh;  
   if(fill_simenergy_) simhits(e, simhits_ee, simhits_fh, simhits_bh);
+
+  edm::Handle<CaloToCellsMap> caloparticles_map_h;
+  std::map<uint32_t, unsigned> cell_to_genparticle;
+  if (fill_truthmap_) {
+    e.getByToken(caloparticles_map_token_, caloparticles_map_h);
+    for (auto& keyval : *caloparticles_map_h) {
+      for (auto& tcref : keyval.val)
+        cell_to_genparticle.emplace(tcref->detId(), keyval.key->g4Tracks().at(0).genpartIndex() - 1);
+    }
+  }
 
   // Associate cells to clusters
   std::unordered_map<uint32_t, uint32_t> cell2cluster;
@@ -242,6 +270,14 @@ fill(const edm::Event& e, const edm::EventSetup& es)
         tc_simenergy_.emplace_back(energy); 
       }
     }
+
+    if (fill_truthmap_) {
+      auto itr(cell_to_genparticle.find(tc_itr->detId()));
+      if (itr == cell_to_genparticle.end())
+        tc_genparticle_index_.push_back(-1);
+      else
+        tc_genparticle_index_.push_back(itr->second);
+    }
   }
 }
 
@@ -326,4 +362,5 @@ clear()
   tc_cluster_id_.clear();
   tc_multicluster_id_.clear();
   tc_multicluster_pt_.clear();
+  tc_genparticle_index_.clear();
 }

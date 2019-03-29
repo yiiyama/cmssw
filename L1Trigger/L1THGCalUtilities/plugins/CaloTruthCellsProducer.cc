@@ -43,6 +43,7 @@ private:
 
   typedef edm::AssociationMap<edm::OneToMany<CaloParticleCollection, l1t::HGCalTriggerCellBxCollection>> CaloToCellsMap;
 
+  bool makeCellsCollection_;
   edm::EDGetTokenT<CaloParticleCollection> caloParticlesToken_;
   edm::EDGetTokenT<l1t::HGCalTriggerCellBxCollection> triggerCellsToken_;
   // // three simhits tokens, depedent on old or new geometry
@@ -55,6 +56,7 @@ private:
 };
 
 CaloTruthCellsProducer::CaloTruthCellsProducer(edm::ParameterSet const& _config) :
+  makeCellsCollection_(_config.getParameter<bool>("makeCellsCollection")),
   caloParticlesToken_(consumes<CaloParticleCollection>(_config.getParameter<edm::InputTag>("caloParticles"))),
   triggerCellsToken_(consumes<l1t::HGCalTriggerCellBxCollection>(_config.getParameter<edm::InputTag>("triggerCells")))
   // simHitsTokenEE_(consumes<std::vector<PCaloHit>>(_config.getParameter<edm::InputTag>("simHitsEE"))),
@@ -62,6 +64,8 @@ CaloTruthCellsProducer::CaloTruthCellsProducer(edm::ParameterSet const& _config)
   // simHitsTokenHEback_(consumes<std::vector<PCaloHit>>(_config.getParameter<edm::InputTag>("simHitsHEback")))
 {
   produces<CaloToCellsMap>();
+  if (makeCellsCollection_)
+    produces<l1t::HGCalTriggerCellBxCollection>();
 }
 
 CaloTruthCellsProducer::~CaloTruthCellsProducer()
@@ -114,9 +118,20 @@ CaloTruthCellsProducer::produce(edm::Event& _event, edm::EventSetup const& _setu
   }
 
   auto outMap(std::make_unique<CaloToCellsMap>(caloParticlesHandle, triggerCellsHandle));
+  std::unique_ptr<l1t::HGCalTriggerCellBxCollection> outCollection;
+  if (makeCellsCollection_)
+    outCollection.reset(new l1t::HGCalTriggerCellBxCollection);
+
+  unsigned bx(0);
+  unsigned bxOffset(0);
 
   // loop through all bunch crossings
   for (unsigned iC(0); iC != triggerCells.size(); ++iC) {
+    if (iC >= bxOffset + triggerCells.size(bx)) {
+      bxOffset += triggerCells.size(bx);
+      bx += 1;
+    }
+
     auto& cell(triggerCells[iC]);
 
     auto mapElem(tcToCalo.find(cell.detId()));
@@ -126,9 +141,14 @@ CaloTruthCellsProducer::produce(edm::Event& _event, edm::EventSetup const& _setu
     edm::Ref<l1t::HGCalTriggerCellBxCollection> ref(triggerCellsHandle, iC);
 
     outMap->insert(mapElem->second, ref);
+
+    if (makeCellsCollection_)
+      outCollection->push_back(bx, cell);
   }
 
   _event.put(std::move(outMap));
+  if (makeCellsCollection_)
+    _event.put(std::move(outCollection));
 }
 
 void

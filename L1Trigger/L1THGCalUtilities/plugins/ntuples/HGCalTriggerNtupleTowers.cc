@@ -19,6 +19,8 @@ class HGCalTriggerNtupleHGCTowers : public HGCalTriggerNtupleBase
 
     edm::EDGetToken towers_token_;
 
+    TString prefix_{"tower"};
+
     int tower_n_ ;
     std::vector<float> tower_pt_;
     std::vector<float> tower_energy_;
@@ -47,15 +49,17 @@ initialize(TTree& tree, const edm::ParameterSet& conf, edm::ConsumesCollector&& 
 {
   towers_token_ = collector.consumes<l1t::HGCalTowerBxCollection>(conf.getParameter<edm::InputTag>("Towers"));
 
-  tree.Branch("tower_n", &tower_n_, "tower_n/I");
-  tree.Branch("tower_pt", &tower_pt_);
-  tree.Branch("tower_energy", &tower_energy_);
-  tree.Branch("tower_eta", &tower_eta_);
-  tree.Branch("tower_phi", &tower_phi_);
-  tree.Branch("tower_etEm", &tower_etEm_);
-  tree.Branch("tower_etHad", &tower_etHad_);
-  tree.Branch("tower_iEta", &tower_iEta_);
-  tree.Branch("tower_iPhi", &tower_iPhi_);
+  prefix_ = conf.getUntrackedParameter<std::string>("Prefix", "tower");
+
+  tree.Branch(prefix_ + "_n", &tower_n_, prefix_ + "_n/I");
+  tree.Branch(prefix_ + "_pt", &tower_pt_);
+  tree.Branch(prefix_ + "_energy", &tower_energy_);
+  tree.Branch(prefix_ + "_eta", &tower_eta_);
+  tree.Branch(prefix_ + "_phi", &tower_phi_);
+  tree.Branch(prefix_ + "_etEm", &tower_etEm_);
+  tree.Branch(prefix_ + "_etHad", &tower_etHad_);
+  tree.Branch(prefix_ + "_iEta", &tower_iEta_);
+  tree.Branch(prefix_ + "_iPhi", &tower_iPhi_);
 
 }
 
