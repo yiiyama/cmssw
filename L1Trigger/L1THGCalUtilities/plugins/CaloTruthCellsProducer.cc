@@ -71,10 +71,10 @@ CaloTruthCellsProducer::CaloTruthCellsProducer(edm::ParameterSet const& _config)
   dummyClustering_(_config.getParameterSet("dummyClustering"))
 {
   produces<CaloToCellsMap>();
-  produces<l1t::HGCalClusterBxCollection>();
-  produces<l1t::HGCalMulticlusterBxCollection>();
+  produces<l1t::HGCalClusterBxCollection>("HGCalBackendLayer1Processor2DClustering");
+  produces<l1t::HGCalMulticlusterBxCollection>("HGCalBackendLayer2Processor3DClustering");
   if (makeCellsCollection_)
-    produces<l1t::HGCalTriggerCellBxCollection>();
+    produces<l1t::HGCalTriggerCellBxCollection>("HGCalVFEProcessorSums");
 }
 
 CaloTruthCellsProducer::~CaloTruthCellsProducer()
@@ -105,7 +105,7 @@ CaloTruthCellsProducer::produce(edm::Event& _event, edm::EventSetup const& _setu
   std::map<uint32_t, CaloParticleRef> tcToCalo;
 
   // used later to order multiclusters
-  std::vector<CaloParticleRef> orderedCaloRefs(caloParticles.size());
+  std::vector<CaloParticleRef> orderedCaloRefs;
 
   for (unsigned iP(0); iP != caloParticles.size(); ++iP) {
     auto& caloParticle(caloParticles.at(iP));
@@ -133,7 +133,13 @@ CaloTruthCellsProducer::produce(edm::Event& _event, edm::EventSetup const& _setu
     }
 
     // ordered by the gen particle index
-    orderedCaloRefs[caloParticle.g4Tracks().at(0).genpartIndex() - 1] = ref;
+    int genIndex(caloParticle.g4Tracks().at(0).genpartIndex() - 1);
+    if (genIndex < 0) // shouldn't happen
+      continue;
+    if (genIndex >= int(orderedCaloRefs.size()))
+      orderedCaloRefs.resize(genIndex + 1);
+
+    orderedCaloRefs[genIndex] = ref;
   }
 
   auto outMap(std::make_unique<CaloToCellsMap>(caloParticlesHandle, triggerCellsHandle));
@@ -175,7 +181,7 @@ CaloTruthCellsProducer::produce(edm::Event& _event, edm::EventSetup const& _setu
 
   _event.put(std::move(outMap));
   if (makeCellsCollection_)
-    _event.put(std::move(outCollection));
+    _event.put(std::move(outCollection), "HGCalVFEProcessorSums");
 
   auto outClusters(std::make_unique<l1t::HGCalClusterBxCollection>());
 
@@ -194,11 +200,14 @@ CaloTruthCellsProducer::produce(edm::Event& _event, edm::EventSetup const& _setu
     caloToClusterIndices[caloRef].push_back(iC);
   }
 
-  auto&& clustersHandle(_event.put(std::move(outClusters)));
+  auto&& clustersHandle(_event.put(std::move(outClusters), "HGCalBackendLayer1Processor2DClustering"));
 
   auto outMulticlusters(std::make_unique<l1t::HGCalMulticlusterBxCollection>());
 
   for (auto& ref : orderedCaloRefs) {
+    if (ref.isNull()) // shouldn't happen
+      continue;
+
     auto& caloParticle(*ref);
 
     l1t::HGCalTriggerCell dummyCell;
@@ -243,7 +252,7 @@ CaloTruthCellsProducer::produce(edm::Event& _event, edm::EventSetup const& _setu
     outMulticlusters->push_back(0, multicluster);
   }
 
-  _event.put(std::move(outMulticlusters));
+  _event.put(std::move(outMulticlusters), "HGCalBackendLayer2Processor3DClustering");
 }
 
 void
