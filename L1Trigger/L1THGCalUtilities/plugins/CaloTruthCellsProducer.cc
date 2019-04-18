@@ -12,11 +12,14 @@
 #include "DataFormats/Common/interface/OneToMany.h"
 #include "DataFormats/Common/interface/Ref.h"
 #include "DataFormats/L1THGCal/interface/HGCalTriggerCell.h"
+#include "DataFormats/L1THGCal/interface/HGCalMulticluster.h"
 #include "DataFormats/ForwardDetId/interface/HGCalDetId.h"
 #include "SimDataFormats/CaloAnalysis/interface/CaloParticleFwd.h"
 #include "SimDataFormats/CaloAnalysis/interface/CaloParticle.h"
 #include "SimDataFormats/CaloAnalysis/interface/SimCluster.h"
 #include "L1Trigger/L1THGCal/interface/HGCalTriggerGeometryBase.h"
+#include "L1Trigger/L1THGCal/interface/backend/HGCalShowerShape.h"
+#include "L1Trigger/L1THGCal/interface/backend/HGCalClusteringDummyImpl.h"
 #include "Geometry/Records/interface/CaloGeometryRecord.h"
 // #include "Geometry/HcalCommonData/interface/HcalDDDRecConstants.h"
 // #include "Geometry/HcalCommonData/interface/HcalHitRelabeller.h"
@@ -53,17 +56,23 @@ private:
 
   // // for input with old (<= V8) geometry, sim and reco hits use different ID schemes
   // bool needSimToRecoMapping_{false};
+
+  HGCalClusteringDummyImpl dummyClustering_;
+  HGCalShowerShape showerShape_;
 };
 
 CaloTruthCellsProducer::CaloTruthCellsProducer(edm::ParameterSet const& _config) :
   makeCellsCollection_(_config.getParameter<bool>("makeCellsCollection")),
   caloParticlesToken_(consumes<CaloParticleCollection>(_config.getParameter<edm::InputTag>("caloParticles"))),
-  triggerCellsToken_(consumes<l1t::HGCalTriggerCellBxCollection>(_config.getParameter<edm::InputTag>("triggerCells")))
+  triggerCellsToken_(consumes<l1t::HGCalTriggerCellBxCollection>(_config.getParameter<edm::InputTag>("triggerCells"))),
   // simHitsTokenEE_(consumes<std::vector<PCaloHit>>(_config.getParameter<edm::InputTag>("simHitsEE"))),
   // simHitsTokenHEfront_(consumes<std::vector<PCaloHit>>(_config.getParameter<edm::InputTag>("simHitsHEfront"))),
   // simHitsTokenHEback_(consumes<std::vector<PCaloHit>>(_config.getParameter<edm::InputTag>("simHitsHEback")))
+  dummyClustering_(_config.getParameterSet("dummyClustering"))
 {
   produces<CaloToCellsMap>();
+  produces<l1t::HGCalClusterBxCollection>();
+  produces<l1t::HGCalMulticlusterBxCollection>();
   if (makeCellsCollection_)
     produces<l1t::HGCalTriggerCellBxCollection>();
 }
@@ -86,10 +95,17 @@ CaloTruthCellsProducer::produce(edm::Event& _event, edm::EventSetup const& _setu
   // std::map<uint32_t, double> hitMap(makeHitMap(_event, _setup)); // cellId -> sim energy
   // std::map<uint32_t, double> tcMap; // tcId -> total sim energy
 
-  edm::ESHandle<HGCalTriggerGeometryBase> geometry;
-  _setup.get<CaloGeometryRecord>().get(geometry);
+  dummyClustering_.eventSetup(_setup);
+  showerShape_.eventSetup(_setup);
+
+  edm::ESHandle<HGCalTriggerGeometryBase> geometryHandle;
+  _setup.get<CaloGeometryRecord>().get(geometryHandle);
+  auto& geometry(*geometryHandle);
 
   std::map<uint32_t, CaloParticleRef> tcToCalo;
+
+  // used later to order multiclusters
+  std::vector<CaloParticleRef> orderedCaloRefs(caloParticles.size());
 
   for (unsigned iP(0); iP != caloParticles.size(); ++iP) {
     auto& caloParticle(caloParticles.at(iP));
@@ -104,7 +120,7 @@ CaloTruthCellsProducer::produce(edm::Event& _event, edm::EventSetup const& _setu
         DetId hitId(hAndF.first);
         HGCalDetId tcId;
         try {
-          tcId = HGCalDetId(geometry->getTriggerCellFromCell(hitId));
+          tcId = HGCalDetId(geometry.getTriggerCellFromCell(hitId));
         }
         catch (cms::Exception const& ex) {
           edm::LogError("CaloTruthCellsProducer") << ex.what();
@@ -115,6 +131,9 @@ CaloTruthCellsProducer::produce(edm::Event& _event, edm::EventSetup const& _setu
         tcToCalo.emplace(tcId, ref);
       }
     }
+
+    // ordered by the gen particle index
+    orderedCaloRefs[caloParticle.g4Tracks().at(0).genpartIndex() - 1] = ref;
   }
 
   auto outMap(std::make_unique<CaloToCellsMap>(caloParticlesHandle, triggerCellsHandle));
@@ -122,8 +141,14 @@ CaloTruthCellsProducer::produce(edm::Event& _event, edm::EventSetup const& _setu
   if (makeCellsCollection_)
     outCollection.reset(new l1t::HGCalTriggerCellBxCollection);
 
-  unsigned bx(0);
+  int bx(triggerCells.getFirstBX());
   unsigned bxOffset(0);
+
+  typedef edm::Ptr<l1t::HGCalTriggerCell> TriggerCellPtr;
+  typedef edm::Ptr<l1t::HGCalCluster> ClusterPtr;
+
+  // ClusteringDummyImpl only considers BX 0, so we dump all cells to one vector
+  std::vector<TriggerCellPtr> triggerCellPtrs;
 
   // loop through all bunch crossings
   for (unsigned iC(0); iC != triggerCells.size(); ++iC) {
@@ -144,11 +169,81 @@ CaloTruthCellsProducer::produce(edm::Event& _event, edm::EventSetup const& _setu
 
     if (makeCellsCollection_)
       outCollection->push_back(bx, cell);
+
+    triggerCellPtrs.emplace_back(triggerCellsHandle, iC);
   }
 
   _event.put(std::move(outMap));
   if (makeCellsCollection_)
     _event.put(std::move(outCollection));
+
+  auto outClusters(std::make_unique<l1t::HGCalClusterBxCollection>());
+
+  auto sortCellPtrs([](TriggerCellPtr const& lhs, TriggerCellPtr const& rhs)->bool {
+      return lhs->mipPt() > rhs->mipPt();
+    });
+
+  std::sort(triggerCellPtrs.begin(), triggerCellPtrs.end(), sortCellPtrs);
+  dummyClustering_.clusterizeDummy(triggerCellPtrs, *outClusters);
+
+  std::map<CaloParticleRef, std::vector<unsigned>> caloToClusterIndices;
+  for (unsigned iC(0); iC != outClusters->size(); ++iC) {
+    auto& cluster((*outClusters)[iC]);
+    // cluster detId and cell detId are identical
+    auto caloRef(tcToCalo.at(cluster.detId()));
+    caloToClusterIndices[caloRef].push_back(iC);
+  }
+
+  auto&& clustersHandle(_event.put(std::move(outClusters)));
+
+  auto outMulticlusters(std::make_unique<l1t::HGCalMulticlusterBxCollection>());
+
+  for (auto& ref : orderedCaloRefs) {
+    auto& caloParticle(*ref);
+
+    l1t::HGCalTriggerCell dummyCell;
+    dummyCell.setDetId(caloParticle.g4Tracks().at(0).genpartIndex() - 1);
+    TriggerCellPtr tcptr(&dummyCell, 0);
+
+    l1t::HGCalCluster dummyCluster(tcptr);
+    ClusterPtr clptr(&dummyCluster, 0);
+
+    l1t::HGCalMulticluster multicluster(clptr); // set the detid
+    
+    for (unsigned iC : caloToClusterIndices[ref]) {
+      ClusterPtr clPtr(clustersHandle, iC);
+      multicluster.addConstituent(clPtr, true, 1.);
+    }
+
+    multicluster.removeConstituent(clptr); // then remove the dummy
+
+    double sumPt(multicluster.sumPt());
+    auto&& centre(multicluster.centre());
+    math::PtEtaPhiMLorentzVector multiclusterP4(sumPt, centre.eta(), centre.phi(), 0.);
+    multicluster.setP4(multiclusterP4);
+
+    multicluster.showerLength(showerShape_.showerLength(multicluster));
+    multicluster.coreShowerLength(showerShape_.coreShowerLength(multicluster, geometry));
+    multicluster.firstLayer(showerShape_.firstLayer(multicluster));
+    multicluster.maxLayer(showerShape_.maxLayer(multicluster));
+    multicluster.sigmaEtaEtaTot(showerShape_.sigmaEtaEtaTot(multicluster));
+    multicluster.sigmaEtaEtaMax(showerShape_.sigmaEtaEtaMax(multicluster));
+    multicluster.sigmaPhiPhiTot(showerShape_.sigmaPhiPhiTot(multicluster));
+    multicluster.sigmaPhiPhiMax(showerShape_.sigmaPhiPhiMax(multicluster));
+    multicluster.sigmaZZ(showerShape_.sigmaZZ(multicluster));
+    multicluster.sigmaRRTot(showerShape_.sigmaRRTot(multicluster));
+    multicluster.sigmaRRMax(showerShape_.sigmaRRMax(multicluster));
+    multicluster.sigmaRRMean(showerShape_.sigmaRRMean(multicluster));
+    multicluster.eMax(showerShape_.eMax(multicluster));
+    // not setting the quality flag
+    // multicluster.setHwQual(id_->decision(multicluster));
+    // fill H/E
+    multicluster.saveHOverE();            
+    
+    outMulticlusters->push_back(0, multicluster);
+  }
+
+  _event.put(std::move(outMulticlusters));
 }
 
 void

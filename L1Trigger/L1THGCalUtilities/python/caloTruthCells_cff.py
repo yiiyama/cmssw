@@ -65,6 +65,12 @@ ntuple_towers_truth = ntuple_towers.clone(
     Prefix = cms.untracked.string('towertruth')
 )
 
+ntuple_multiclusters_fulltruth = ntuple_multiclusters.clone(
+    Multiclusters = cms.InputTag('caloTruthCellsProducer'),
+    Prefix = cms.untracked.string('cl3dfulltruth')
+)
+
 hgcalTriggerNtuplizer.Ntuples.append(ntuple_triggercells_truth)
 hgcalTriggerNtuplizer.Ntuples.append(ntuple_multiclusters_truth)
 hgcalTriggerNtuplizer.Ntuples.append(ntuple_towers_truth)
+hgcalTriggerNtuplizer.Ntuples.append(ntuple_multiclusters_fulltruth)
