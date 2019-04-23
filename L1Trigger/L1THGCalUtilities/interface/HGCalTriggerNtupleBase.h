@@ -2,6 +2,7 @@
 #define __L1Trigger_L1THGCalUtilities_HGCalTriggerNtupleBase_h__
 
 #include "FWCore/Framework/interface/Event.h"
+#include "FWCore/Framework/interface/Run.h"
 #include "FWCore/Framework/interface/EventSetup.h"
 #include "FWCore/Framework/interface/ConsumesCollector.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
@@ -14,6 +15,7 @@ class HGCalTriggerNtupleBase
         HGCalTriggerNtupleBase(const edm::ParameterSet& conf) {};
         virtual ~HGCalTriggerNtupleBase(){};	
         virtual void initialize(TTree& , const edm::ParameterSet&, edm::ConsumesCollector&& ) = 0;
+        virtual void beginRun(const edm::Run& , const edm::EventSetup& ) {}
         virtual void fill(const edm::Event& , const edm::EventSetup& ) = 0;
 
     protected:

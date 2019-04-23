@@ -3,16 +3,34 @@
 #include "L1Trigger/L1THGCal/interface/HGCalTriggerGeometryBase.h"
 #include "L1Trigger/L1THGCalUtilities/interface/HGCalTriggerNtupleBase.h"
 #include "L1Trigger/L1THGCal/interface/backend/HGCalTriggerClusterIdentificationBase.h"
+#include "RecoLocalCalo/HGCalRecAlgos/interface/RecHitTools.h"
 
+// Taken from HGCalAnalysis
+class SimpleTrackPropagator {
+public:
+  SimpleTrackPropagator(MagneticField const&, double hgcalSurface);
+  bool propagate(math::XYZTLorentzVectorD const& momentum, math::XYZTLorentzVectorD const& position,
+                 float charge, math::XYZVectorD& coords) const;
 
+  double abszTarget() const { return abszTarget_; }
+
+private:
+  MagneticField const& field_;
+  Plane::PlanePointer targetPlaneForward_;
+  Plane::PlanePointer targetPlaneBackward_;
+  float abszTarget_;
+  CurvilinearTrajectoryError err_;
+  defaultRKPropagator::Product prod_;
+};
 
 class HGCalTriggerNtupleHGCMulticlusters : public HGCalTriggerNtupleBase
 {
 
   public:
     HGCalTriggerNtupleHGCMulticlusters(const edm::ParameterSet& conf);
-    ~HGCalTriggerNtupleHGCMulticlusters() override{};
+    ~HGCalTriggerNtupleHGCMulticlusters() override { delete propagator_; }
     void initialize(TTree&, const edm::ParameterSet&, edm::ConsumesCollector&&) final;
+    void beginRun(const edm::Run& r, const edm::EventSetup& es) override;
     void fill(const edm::Event& e, const edm::EventSetup& es) final;
 
   private:
@@ -23,6 +41,9 @@ class HGCalTriggerNtupleHGCMulticlusters : public HGCalTriggerNtupleBase
     std::unique_ptr<HGCalTriggerClusterIdentificationBase> id_;
 
     TString prefix_;
+    bool matchSimTrack_;
+    FSimEvent* fsimEvent_;
+    SimpleTrackPropagator* propagator_;
 
     int cl3d_n_ ;
     std::vector<uint32_t> cl3d_id_;
@@ -48,15 +69,67 @@ class HGCalTriggerNtupleHGCMulticlusters : public HGCalTriggerNtupleBase
     std::vector<float> cl3d_emaxe_;
     std::vector<float> cl3d_bdteg_;
     std::vector<int> cl3d_quality_;
+
+    std::vector<std::vector<int>> cl3d_simtrack_pid_;
+    std::vector<std::vector<float>> cl3d_simtrack_pt_;
+    std::vector<std::vector<float>> cl3d_simtrack_eta_;
+    std::vector<std::vector<float>> cl3d_simtrack_phi_;
 };
 
 DEFINE_EDM_PLUGIN(HGCalTriggerNtupleFactory,
     HGCalTriggerNtupleHGCMulticlusters,
     "HGCalTriggerNtupleHGCMulticlusters" );
 
+SimpleTrackProparagtor::SimpleTrackPropagator(MagneticField const& _field, double _hgcalSurface) :
+  field_(_field),
+  targetPlaneForward_(Plane::build(Plane::PositionType(0, 0, std::abs(_hgcalSurface)), Plane::RotationType())),
+  targetPlaneBackward_(Plane::build(Plane::PositionType(0, 0, -std::abs(_hgcalSurface)), Plane::RotationType())),
+  abszTarget_(std::abs(_hgcalSurface)),
+  prod_(&_field, alongMomentum, 5.e-5)
+{
+  ROOT::Math::SMatrixIdentity id;
+  AlgebraicSymMatrix55 C(id);
+  C *= 0.001;
+  err_ = CurvilinearTrajectoryError(C);
+}
+
+bool
+SimpleTrackPropagator::propagate(math::XYZTLorentzVectorD const& _momentum,
+                                 math::XYZTLorentzVectorD const& _position,
+                                 float _charge,
+                                 math::XYZVectorD& _output) const
+{
+  double px(_momentum.px());
+  double py(_momentum.py());
+  double pz(_momentum.pz());
+  double x(_position.x());
+  double y(_position.y());
+  double z(_position.z());
+
+  typedef TrajectoryStateOnSurface TSOS;
+  GlobalPoint startingPosition(x, y, z);
+  GlobalVector startingMomentum(px, py, pz);
+  Plane::PlanePointer startingPlane(Plane::build(Plane::PositionType(x, y, z), Plane::RotationType()));
+
+  TSOS startingStateP(GlobalTrajectoryParameters(startingPosition, startingMomentum, _charge, &field_),
+                      err_,
+                      *startingPlane);
+
+  TSOS trackStateP(prod_.propagator.propagate(startingStateP, *(pz > 0 ? targetPlaneForward_ : targetPlaneBackward_)));
+
+  if (trackStateP.isValid()) {
+    auto&& gp(trackStateP.globalPosition());
+    _output.SetCoordinates(gp.x(), gp.y(), gp.z());
+    return true;
+  }
+
+  _output = math::XYZVectorD();
+  return false;
+}
+
 
 HGCalTriggerNtupleHGCMulticlusters::
-HGCalTriggerNtupleHGCMulticlusters(const edm::ParameterSet& conf):HGCalTriggerNtupleBase(conf)
+HGCalTriggerNtupleHGCMulticlusters(const edm::ParameterSet& conf):HGCalTriggerNtupleBase(conf), propagator_(nullptr)
 {
 }
 
@@ -94,6 +167,35 @@ initialize(TTree& tree, const edm::ParameterSet& conf, edm::ConsumesCollector&& 
   tree.Branch(prefix_ + "_bdteg", &cl3d_bdteg_);
   tree.Branch(prefix_ + "_quality", &cl3d_quality_);
 
+  matchSimTrack_ = conf.getUntrackedParameter<bool>("MatchSimTrack", false);
+  if (matchSimTrack_) {
+    tree.Branch(prefix_ + "_simtracks_pid", &cl3d_simtracks_pid_);
+    tree.Branch(prefix_ + "_simtracks_pt", &cl3d_simtracks_pt_);
+    tree.Branch(prefix_ + "_simtracks_eta", &cl3d_simtracks_eta_);
+    tree.Branch(prefix_ + "_simtracks_phi", &cl3d_simtracks_phi_);
+
+    fsimEvent_ = new FSimEvent(conf.getUntrackedParameterSet("SimTrackFilter"));
+  }
+}
+
+void
+HGCalTriggerNtupleHGCMulticlusters::
+beginRun(const edm::Run&, const edm::EventSetup& es)
+{
+  if (matchSimTrack_) {
+    edm::ESHandle<HepPDT::ParticleDataTable> pdt;
+    es.getData(pdt);
+    fsimEvent_->initializePdt(&(*pdt));
+
+    edm::ESHandle<MagneticField> magfield;
+    es.get<IdealMagneticFieldRecord>().get(magfield);
+
+    hgcal::RecHitTools recHitTools;
+    recHitTools.getEventSetup(es);
+
+    delete propagator_;
+    propagator_ = new SimpleTrackPropagator(*magfield, rechitTools.getPositionLayer(1).z());
+  }
 }
 
 void
@@ -142,6 +244,43 @@ fill(const edm::Event& e, const edm::EventSetup& es)
     std::transform(cl3d_itr->constituents_begin(), cl3d_itr->constituents_end(),
         cl3d_clusters_id_.back().begin(), [](const std::pair<uint32_t,edm::Ptr<l1t::HGCalCluster>>& id_cl){return id_cl.second->detId();}
         );
+  }
+
+  if (matchSimTrack_) {
+    // vector of propagated positions and simtracks
+    std::vector<std::pair<math::XYZVectorD, FSimTrack const*>> positionsAndTracks;
+
+    edm::Handle<std::vector<SimTrack>> simTracksHandle;
+    e.getByToken(simTracksToken_, simTracksHandle);
+    auto const& simTracks(*simTracksHandle);
+
+    edm::Handle<std::vector<SimVertex>> simVerticesHandle;
+    e.getByToken(simVerticesToken_, simVerticesHandle);
+    auto const& simVertices(*simVerticesHandle);
+
+    fsimEvent_->fill(simTracks, simVertices);
+
+    for (unsigned iT(0); iT != fsimEvent_->nTracks(); ++iT) {
+      auto const& track(fsimEvent_->track(iT));
+
+      // skip tracks that start after HGCal
+      if (std::abs(track.vertex().position().z()) > propagator_->abszTarget())
+        continue;
+
+      // skip tracks that end before HGCal
+      if (!track.noEndVertex() && std::abs(track.endVertex().position().z()) < propagator_->abszTarget())
+        continue;
+
+      math::XYZVectorD positionOnSurface;
+      if (!propagator_->propagate(track.momentum(), track.vertex().position(), track.charge(), positionOnSurface))
+        continue;
+
+      double rho(positionOnSurface.Rho());
+      if (rho < outerRadius_ && rho > innerRadius)
+        positionsAndTracks.emplace_back(positionOnSurface, &track);
+    }
+
+    // now match the tracks to clusters
   }
 }
 

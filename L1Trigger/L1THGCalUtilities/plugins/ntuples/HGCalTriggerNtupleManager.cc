@@ -16,7 +16,7 @@ class HGCalTriggerNtupleManager : public edm::EDAnalyzer
     public:
         explicit HGCalTriggerNtupleManager(const edm::ParameterSet& conf);
         ~HGCalTriggerNtupleManager() override{};
-        void beginRun(const edm::Run&, const edm::EventSetup&) override {};
+        void beginRun(const edm::Run&, const edm::EventSetup&) override;
         void analyze(const edm::Event&, const edm::EventSetup&) override;
 
     private:
@@ -42,6 +42,15 @@ HGCalTriggerNtupleManager(const edm::ParameterSet& conf)
     }
 }
 
+void
+HGCalTriggerNtupleManager::
+beginRun(const edm::Run& r, const edm::EventSetup& es)
+{
+    for(auto& hgc_ntuple : hgc_ntuples_)
+    {
+        hgc_ntuple->beginRun(r,es);
+    }
+}
 
 void 
 HGCalTriggerNtupleManager::
