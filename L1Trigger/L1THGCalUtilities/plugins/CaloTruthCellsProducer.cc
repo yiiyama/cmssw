@@ -124,21 +124,20 @@ CaloTruthCellsProducer::produce(edm::Event& event, edm::EventSetup const& setup)
   std::vector<TriggerCellPtr> triggerCellPtrs;
 
   // loop through all bunch crossings
-  unsigned iC(0);
   for (int bx(triggerCells.getFirstBX()); bx <= triggerCells.getLastBX(); ++bx) {
-    for (auto&& cItr(triggerCells.begin(bx)); cItr != triggerCells.end(bx); ++cItr, ++iC) {
+    for (auto&& cItr(triggerCells.begin(bx)); cItr != triggerCells.end(bx); ++cItr) {
       auto& cell(*cItr);
 
       auto mapElem(tcToCalo.find(cell.detId()));
       if (mapElem == tcToCalo.end())
         continue;
 
-      outMap->insert(mapElem->second, edm::Ref<l1t::HGCalTriggerCellBxCollection>(triggerCellsHandle, iC));
+      outMap->insert(mapElem->second, edm::Ref<l1t::HGCalTriggerCellBxCollection>(triggerCellsHandle, triggerCells.key(cItr)));
 
       if (makeCellsCollection_)
         outCollection->push_back(bx, cell);
 
-      triggerCellPtrs.emplace_back(triggerCellsHandle, iC);
+      triggerCellPtrs.emplace_back(triggerCellsHandle, triggerCells.key(cItr));
     }
   }
 
