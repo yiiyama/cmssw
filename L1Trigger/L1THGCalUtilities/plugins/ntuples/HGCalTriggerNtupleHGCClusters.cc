@@ -26,8 +26,6 @@ class HGCalTriggerNtupleHGCClusters : public HGCalTriggerNtupleBase
     edm::EDGetToken clusters_token_, multiclusters_token_;
     HGCalTriggerTools triggerTools_;
 
-    TString prefix_;
-
     int cl_n_ ;
     std::vector<uint32_t> cl_id_;
     std::vector<float> cl_mipPt_;
@@ -63,21 +61,28 @@ initialize(TTree& tree, const edm::ParameterSet& conf, edm::ConsumesCollector&& 
   clusters_token_ = collector.consumes<l1t::HGCalClusterBxCollection>(conf.getParameter<edm::InputTag>("Clusters"));
   multiclusters_token_ = collector.consumes<l1t::HGCalMulticlusterBxCollection>(conf.getParameter<edm::InputTag>("Multiclusters"));
 
-  prefix_ = conf.getUntrackedParameter<std::string>("Prefix", "cl");
+  std::string prefix(conf.getUntrackedParameter<std::string>("Prefix", "cl"));
 
-  tree.Branch(prefix_ + "_n", &cl_n_, prefix_ + "_n/I");
-  tree.Branch(prefix_ + "_id", &cl_id_);
-  tree.Branch(prefix_ + "_mipPt", &cl_mipPt_);
-  tree.Branch(prefix_ + "_pt", &cl_pt_);
-  tree.Branch(prefix_ + "_energy", &cl_energy_);
-  tree.Branch(prefix_ + "_eta", &cl_eta_);
-  tree.Branch(prefix_ + "_phi", &cl_phi_);
-  tree.Branch(prefix_ + "_layer", &cl_layer_);
-  tree.Branch(prefix_ + "_subdet", &cl_subdet_);
-  tree.Branch(prefix_ + "_cells_n", &cl_cells_n_);
-  tree.Branch(prefix_ + "_cells_id", &cl_cells_id_);
-  tree.Branch(prefix_ + "_multicluster_id", &cl_multicluster_id_);
-  tree.Branch(prefix_ + "_multicluster_pt", &cl_multicluster_pt_);
+  std::string bname;
+  auto withPrefix([&prefix, &bname](char const* vname)->char const* {
+      bname = prefix + "_" + vname;
+      return bname.c_str();
+    });
+
+  // note: can't use withPrefix() twice within a same statement because bname gets overwritten
+  tree.Branch(withPrefix("n"), &cl_n_, (prefix + "_n/I").c_str());
+  tree.Branch(withPrefix("id"), &cl_id_);
+  tree.Branch(withPrefix("mipPt"), &cl_mipPt_);
+  tree.Branch(withPrefix("pt"), &cl_pt_);
+  tree.Branch(withPrefix("energy"), &cl_energy_);
+  tree.Branch(withPrefix("eta"), &cl_eta_);
+  tree.Branch(withPrefix("phi"), &cl_phi_);
+  tree.Branch(withPrefix("layer"), &cl_layer_);
+  tree.Branch(withPrefix("subdet"), &cl_subdet_);
+  tree.Branch(withPrefix("cells_n"), &cl_cells_n_);
+  tree.Branch(withPrefix("cells_id"), &cl_cells_id_);
+  tree.Branch(withPrefix("multicluster_id"), &cl_multicluster_id_);
+  tree.Branch(withPrefix("multicluster_pt"), &cl_multicluster_pt_);
 }
 
 void
