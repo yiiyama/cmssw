@@ -43,18 +43,19 @@ float HGCalHistoClusteringImpl::dR( const l1t::HGCalCluster & clu,
 
 
 std::vector<l1t::HGCalMulticluster> HGCalHistoClusteringImpl::clusterSeedMulticluster(const std::vector<edm::Ptr<l1t::HGCalCluster>> & clustersPtrs,
-                                                                                           const std::vector<std::pair<GlobalPoint, double> > & seeds){
+                                                                                           const std::vector<std::pair<GlobalPoint, double> > & seeds) const
+{
 
     std::map<int,l1t::HGCalMulticluster> mapSeedMulticluster;
     std::vector<l1t::HGCalMulticluster> multiclustersTmp;
 
-    for(auto & clu : clustersPtrs){
+    for(const auto& clu : clustersPtrs){
 
         int z_side = triggerTools_.zside(clu->detId());
 
 
-        double radiusCoefficientA = dr_byLayer_coefficientA_.empty() ? dr_ : dr_byLayer_coefficientA_.at(triggerTools_.layerWithOffset(clu->detId())); // use at() to get the assert, for the moment
-        double radiusCoefficientB = dr_byLayer_coefficientB_.empty() ? 0 : dr_byLayer_coefficientB_.at(triggerTools_.layerWithOffset(clu->detId())); // use at() to get the assert, for the moment
+        double radiusCoefficientA = dr_byLayer_coefficientA_.empty() ? dr_ : dr_byLayer_coefficientA_[triggerTools_.layerWithOffset(clu->detId())];
+        double radiusCoefficientB = dr_byLayer_coefficientB_.empty() ? 0 : dr_byLayer_coefficientB_[triggerTools_.layerWithOffset(clu->detId())];
 
         double minDist = radiusCoefficientA + radiusCoefficientB*(kMidRadius_ - std::abs(clu->eta()) ) ;
 
@@ -72,7 +73,7 @@ std::vector<l1t::HGCalMulticluster> HGCalHistoClusteringImpl::clusterSeedMulticl
                 if ( cluster_association_strategy_ == EnergySplit ){
                     targetSeedsEnergy.emplace_back( iseed, seedEnergy );
                 }
-                if ( cluster_association_strategy_ == NearestNeighbour ){
+                else if ( cluster_association_strategy_ == NearestNeighbour ){
 
                     minDist = d;
 
@@ -92,25 +93,27 @@ std::vector<l1t::HGCalMulticluster> HGCalHistoClusteringImpl::clusterSeedMulticl
         if(targetSeedsEnergy.empty()) continue;
         //Loop over target seeds and divide up the clusters energy
         double totalTargetSeedEnergy = 0;
-        for (auto energy: targetSeedsEnergy){
+        for (const auto& energy: targetSeedsEnergy){
             totalTargetSeedEnergy+=energy.second;
         }
     
-        for (auto energy: targetSeedsEnergy){
+        for (const auto& energy: targetSeedsEnergy){
 
             double seedWeight = 1;
             if ( cluster_association_strategy_ == EnergySplit) seedWeight = energy.second/totalTargetSeedEnergy;
             if( mapSeedMulticluster[energy.first].size()==0) {
                 mapSeedMulticluster[energy.first] = l1t::HGCalMulticluster(clu, seedWeight) ;
             }
-            mapSeedMulticluster[energy.first].addConstituent(clu, true, seedWeight);   
+            else{
+                mapSeedMulticluster[energy.first].addConstituent(clu, true, seedWeight);   
+            }
           
         }
         
     }
 
 
-    for(auto mclu : mapSeedMulticluster) multiclustersTmp.emplace_back(mclu.second);
+    for(const auto& mclu : mapSeedMulticluster) multiclustersTmp.emplace_back(mclu.second);
 
     return multiclustersTmp;
 
@@ -122,7 +125,7 @@ std::vector<l1t::HGCalMulticluster> HGCalHistoClusteringImpl::clusterSeedMulticl
 void HGCalHistoClusteringImpl::clusterizeHisto( const std::vector<edm::Ptr<l1t::HGCalCluster>> & clustersPtrs,
                                                      const std::vector<std::pair<GlobalPoint, double> > & seedPositionsEnergy,
                                                      const HGCalTriggerGeometryBase & triggerGeometry,
-                                                     l1t::HGCalMulticlusterBxCollection & multiclusters)
+                                                     l1t::HGCalMulticlusterBxCollection & multiclusters) const
 {
 
 
@@ -141,7 +144,8 @@ void
 HGCalHistoClusteringImpl::
 finalizeClusters(std::vector<l1t::HGCalMulticluster>& multiclusters_in,
             l1t::HGCalMulticlusterBxCollection& multiclusters_out, 
-            const HGCalTriggerGeometryBase& triggerGeometry) {
+            const HGCalTriggerGeometryBase& triggerGeometry) const
+{
     for(auto& multicluster : multiclusters_in) {
         // compute the eta, phi from its barycenter
         // + pT as scalar sum of pT of constituents
@@ -155,19 +159,7 @@ finalizeClusters(std::vector<l1t::HGCalMulticluster>& multiclusters_in,
 
         if( multicluster.pt() > ptC3dThreshold_ ){
             //compute shower shapes
-            multicluster.showerLength(shape_.showerLength(multicluster));
-            multicluster.coreShowerLength(shape_.coreShowerLength(multicluster, triggerGeometry));
-            multicluster.firstLayer(shape_.firstLayer(multicluster));
-            multicluster.maxLayer(shape_.maxLayer(multicluster));
-            multicluster.sigmaEtaEtaTot(shape_.sigmaEtaEtaTot(multicluster));
-            multicluster.sigmaEtaEtaMax(shape_.sigmaEtaEtaMax(multicluster));
-            multicluster.sigmaPhiPhiTot(shape_.sigmaPhiPhiTot(multicluster));
-            multicluster.sigmaPhiPhiMax(shape_.sigmaPhiPhiMax(multicluster));
-            multicluster.sigmaZZ(shape_.sigmaZZ(multicluster));
-            multicluster.sigmaRRTot(shape_.sigmaRRTot(multicluster));
-            multicluster.sigmaRRMax(shape_.sigmaRRMax(multicluster));
-            multicluster.sigmaRRMean(shape_.sigmaRRMean(multicluster));
-            multicluster.eMax(shape_.eMax(multicluster));
+            shape_.fillShapes(multicluster, triggerGeometry);
             // fill quality flag
             multicluster.setHwQual(id_->decision(multicluster));
             // fill H/E
