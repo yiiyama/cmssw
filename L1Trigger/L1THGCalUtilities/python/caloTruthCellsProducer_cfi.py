@@ -1,6 +1,6 @@
 import FWCore.ParameterSet.Config as cms
 
-from L1Trigger.L1THGCal.hgcalBackEndLayer1Producer_cfi import C2d_parValues
+from L1Trigger.L1THGCal.hgcalBackEndLayer1Producer_cfi import dummy_C2d_params
 
 caloTruthCellsProducer = cms.EDProducer('CaloTruthCellsProducer',
     caloParticles = cms.InputTag('mix', 'MergedCaloTruth'),
@@ -9,5 +9,5 @@ caloTruthCellsProducer = cms.EDProducer('CaloTruthCellsProducer',
     simHitsHEfront = cms.InputTag('g4SimHits:HGCHitsHEfront'),
     simHitsHEback = cms.InputTag('g4SimHits:HcalHits'),
     makeCellsCollection = cms.bool(True),
-    dummyClustering = C2d_parValues.clone()
+    dummyClustering = dummy_C2d_params.clone()
 )

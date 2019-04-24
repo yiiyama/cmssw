@@ -5,6 +5,13 @@
 #include "L1Trigger/L1THGCal/interface/backend/HGCalTriggerClusterIdentificationBase.h"
 #include "RecoLocalCalo/HGCalRecAlgos/interface/RecHitTools.h"
 
+#include "FastSimulation/Event/interface/FSimEvent.h"
+#include "DataFormats/GeometrySurface/interface/Plane.h"
+#include "TrackingTools/TrajectoryParametrization/interface/CurvilinearTrajectoryError.h"
+#include "TrackPropagation/RungeKutta/interface/defaultRKPropagator.h"
+#include "MagneticField/Engine/interface/MagneticField.h"
+#include "MagneticField/Records/interface/IdealMagneticFieldRecord.h"
+
 // Taken from HGCalAnalysis
 class SimpleTrackPropagator {
 public:
@@ -37,10 +44,11 @@ class HGCalTriggerNtupleHGCMulticlusters : public HGCalTriggerNtupleBase
     void clear() final;
 
     edm::EDGetToken multiclusters_token_;
+    edm::EDGetToken simTracksToken_;
+    edm::EDGetToken simVerticesToken_;
 
     std::unique_ptr<HGCalTriggerClusterIdentificationBase> id_;
 
-    TString prefix_;
     bool matchSimTrack_;
     FSimEvent* fsimEvent_;
     SimpleTrackPropagator* propagator_;
@@ -70,17 +78,17 @@ class HGCalTriggerNtupleHGCMulticlusters : public HGCalTriggerNtupleBase
     std::vector<float> cl3d_bdteg_;
     std::vector<int> cl3d_quality_;
 
-    std::vector<std::vector<int>> cl3d_simtrack_pid_;
-    std::vector<std::vector<float>> cl3d_simtrack_pt_;
-    std::vector<std::vector<float>> cl3d_simtrack_eta_;
-    std::vector<std::vector<float>> cl3d_simtrack_phi_;
+    std::vector<std::vector<int>> cl3d_simtracks_pid_;
+    std::vector<std::vector<float>> cl3d_simtracks_pt_;
+    std::vector<std::vector<float>> cl3d_simtracks_eta_;
+    std::vector<std::vector<float>> cl3d_simtracks_phi_;
 };
 
 DEFINE_EDM_PLUGIN(HGCalTriggerNtupleFactory,
     HGCalTriggerNtupleHGCMulticlusters,
     "HGCalTriggerNtupleHGCMulticlusters" );
 
-SimpleTrackProparagtor::SimpleTrackPropagator(MagneticField const& _field, double _hgcalSurface) :
+SimpleTrackPropagator::SimpleTrackPropagator(MagneticField const& _field, double _hgcalSurface) :
   field_(_field),
   targetPlaneForward_(Plane::build(Plane::PositionType(0, 0, std::abs(_hgcalSurface)), Plane::RotationType())),
   targetPlaneBackward_(Plane::build(Plane::PositionType(0, 0, -std::abs(_hgcalSurface)), Plane::RotationType())),
@@ -141,38 +149,47 @@ initialize(TTree& tree, const edm::ParameterSet& conf, edm::ConsumesCollector&& 
   id_ = std::unique_ptr<HGCalTriggerClusterIdentificationBase>{ HGCalTriggerClusterIdentificationFactory::get()->create("HGCalTriggerClusterIdentificationBDT") };
   id_->initialize(conf.getParameter<edm::ParameterSet>("EGIdentification")); 
 
-  prefix_ = conf.getUntrackedParameter<std::string>("Prefix", "cl3d");
+  std::string prefix(conf.getUntrackedParameter<std::string>("Prefix", "cl3d"));
 
-  tree.Branch(prefix_ + "_n", &cl3d_n_, prefix_ + "_n/I");
-  tree.Branch(prefix_ + "_id", &cl3d_id_);
-  tree.Branch(prefix_ + "_pt", &cl3d_pt_);
-  tree.Branch(prefix_ + "_energy", &cl3d_energy_);
-  tree.Branch(prefix_ + "_eta", &cl3d_eta_);
-  tree.Branch(prefix_ + "_phi", &cl3d_phi_);
-  tree.Branch(prefix_ + "_clusters_n", &cl3d_clusters_n_);
-  tree.Branch(prefix_ + "_clusters_id", &cl3d_clusters_id_);
-  tree.Branch(prefix_ + "_showerlength", &cl3d_showerlength_);
-  tree.Branch(prefix_ + "_coreshowerlength", &cl3d_coreshowerlength_);
-  tree.Branch(prefix_ + "_firstlayer", &cl3d_firstlayer_);
-  tree.Branch(prefix_ + "_maxlayer", &cl3d_maxlayer_);
-  tree.Branch(prefix_ + "_seetot", &cl3d_seetot_);
-  tree.Branch(prefix_ + "_seemax", &cl3d_seemax_);
-  tree.Branch(prefix_ + "_spptot", &cl3d_spptot_);
-  tree.Branch(prefix_ + "_sppmax", &cl3d_sppmax_);
-  tree.Branch(prefix_ + "_szz", &cl3d_szz_);
-  tree.Branch(prefix_ + "_srrtot", &cl3d_srrtot_);
-  tree.Branch(prefix_ + "_srrmax", &cl3d_srrmax_);
-  tree.Branch(prefix_ + "_srrmean", &cl3d_srrmean_);
-  tree.Branch(prefix_ + "_emaxe", &cl3d_emaxe_);
-  tree.Branch(prefix_ + "_bdteg", &cl3d_bdteg_);
-  tree.Branch(prefix_ + "_quality", &cl3d_quality_);
+  std::string bname;
+  auto withPrefix([&prefix, &bname](char const* vname)->char const* {
+      bname = prefix + "_" + vname;
+      return bname.c_str();
+    });
+
+  tree.Branch(withPrefix("n"), &cl3d_n_, (prefix + "_n/I").c_str());
+  tree.Branch(withPrefix("id"), &cl3d_id_);
+  tree.Branch(withPrefix("pt"), &cl3d_pt_);
+  tree.Branch(withPrefix("energy"), &cl3d_energy_);
+  tree.Branch(withPrefix("eta"), &cl3d_eta_);
+  tree.Branch(withPrefix("phi"), &cl3d_phi_);
+  tree.Branch(withPrefix("clusters_n"), &cl3d_clusters_n_);
+  tree.Branch(withPrefix("clusters_id"), &cl3d_clusters_id_);
+  tree.Branch(withPrefix("showerlength"), &cl3d_showerlength_);
+  tree.Branch(withPrefix("coreshowerlength"), &cl3d_coreshowerlength_);
+  tree.Branch(withPrefix("firstlayer"), &cl3d_firstlayer_);
+  tree.Branch(withPrefix("maxlayer"), &cl3d_maxlayer_);
+  tree.Branch(withPrefix("seetot"), &cl3d_seetot_);
+  tree.Branch(withPrefix("seemax"), &cl3d_seemax_);
+  tree.Branch(withPrefix("spptot"), &cl3d_spptot_);
+  tree.Branch(withPrefix("sppmax"), &cl3d_sppmax_);
+  tree.Branch(withPrefix("szz"), &cl3d_szz_);
+  tree.Branch(withPrefix("srrtot"), &cl3d_srrtot_);
+  tree.Branch(withPrefix("srrmax"), &cl3d_srrmax_);
+  tree.Branch(withPrefix("srrmean"), &cl3d_srrmean_);
+  tree.Branch(withPrefix("emaxe"), &cl3d_emaxe_);
+  tree.Branch(withPrefix("bdteg"), &cl3d_bdteg_);
+  tree.Branch(withPrefix("quality"), &cl3d_quality_);
 
   matchSimTrack_ = conf.getUntrackedParameter<bool>("MatchSimTrack", false);
   if (matchSimTrack_) {
-    tree.Branch(prefix_ + "_simtracks_pid", &cl3d_simtracks_pid_);
-    tree.Branch(prefix_ + "_simtracks_pt", &cl3d_simtracks_pt_);
-    tree.Branch(prefix_ + "_simtracks_eta", &cl3d_simtracks_eta_);
-    tree.Branch(prefix_ + "_simtracks_phi", &cl3d_simtracks_phi_);
+    simTracksToken_ = collector.consumes<std::vector<SimTrack>>(conf.getParameter<edm::InputTag>("SimTracks"));
+    simVerticesToken_ = collector.consumes<std::vector<SimVertex>>(conf.getParameter<edm::InputTag>("SimVertices"));
+
+    tree.Branch(withPrefix("simtracks_pid"), &cl3d_simtracks_pid_);
+    tree.Branch(withPrefix("simtracks_pt"), &cl3d_simtracks_pt_);
+    tree.Branch(withPrefix("simtracks_eta"), &cl3d_simtracks_eta_);
+    tree.Branch(withPrefix("simtracks_phi"), &cl3d_simtracks_phi_);
 
     fsimEvent_ = new FSimEvent(conf.getUntrackedParameterSet("SimTrackFilter"));
   }
@@ -194,7 +211,7 @@ beginRun(const edm::Run&, const edm::EventSetup& es)
     recHitTools.getEventSetup(es);
 
     delete propagator_;
-    propagator_ = new SimpleTrackPropagator(*magfield, rechitTools.getPositionLayer(1).z());
+    propagator_ = new SimpleTrackPropagator(*magfield, recHitTools.getPositionLayer(1).z());
   }
 }
 
@@ -247,6 +264,10 @@ fill(const edm::Event& e, const edm::EventSetup& es)
   }
 
   if (matchSimTrack_) {
+    // approximate bounds
+    double const outerRadius(160.);
+    double const innerRadius(25.);
+
     // vector of propagated positions and simtracks
     std::vector<std::pair<math::XYZVectorD, FSimTrack const*>> positionsAndTracks;
 
@@ -276,7 +297,7 @@ fill(const edm::Event& e, const edm::EventSetup& es)
         continue;
 
       double rho(positionOnSurface.Rho());
-      if (rho < outerRadius_ && rho > innerRadius)
+      if (rho < outerRadius && rho > innerRadius)
         positionsAndTracks.emplace_back(positionOnSurface, &track);
     }
 
@@ -312,6 +333,11 @@ clear()
   cl3d_emaxe_.clear();
   cl3d_bdteg_.clear();
   cl3d_quality_.clear();
+
+  cl3d_simtracks_pid_.clear();
+  cl3d_simtracks_pt_.clear();
+  cl3d_simtracks_eta_.clear();
+  cl3d_simtracks_phi_.clear();
 }
 
 

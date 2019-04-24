@@ -44,8 +44,6 @@ class HGCalTriggerNtupleHGCTriggerCells : public HGCalTriggerNtupleBase
     std::vector<double> thicknessCorrections_;
     edm::ESHandle<HGCalTriggerGeometryBase> geometry_;
 
-    TString prefix_;
-
     int tc_n_ ;
     std::vector<uint32_t> tc_id_;
     std::vector<int> tc_subdet_;
@@ -111,34 +109,40 @@ initialize(TTree& tree, const edm::ParameterSet& conf, edm::ConsumesCollector&& 
   if (fill_truthmap_)
     caloparticles_map_token_ = collector.consumes<CaloToCellsMap>(conf.getParameter<edm::InputTag>("caloParticlesToCells"));
 
-  prefix_ = conf.getUntrackedParameter<std::string>("Prefix", "tc");
+  std::string prefix(conf.getUntrackedParameter<std::string>("Prefix", "tc"));
 
-  tree.Branch(prefix_ + "_n", &tc_n_, prefix_ + "_n/I");
-  tree.Branch(prefix_ + "_id", &tc_id_);
-  tree.Branch(prefix_ + "_subdet", &tc_subdet_);
-  tree.Branch(prefix_ + "_zside", &tc_side_);
-  tree.Branch(prefix_ + "_layer", &tc_layer_);
-  tree.Branch(prefix_ + "_wafer", &tc_wafer_);
-  tree.Branch(prefix_ + "_wafertype", &tc_wafertype_);
-  tree.Branch(prefix_ + "_cell", &tc_cell_);
-  tree.Branch(prefix_ + "_data", &tc_data_);
-  tree.Branch(prefix_ + "_uncompressedCharge", &tc_uncompressedCharge_);
-  tree.Branch(prefix_ + "_compressedCharge", &tc_compressedCharge_);
-  tree.Branch(prefix_ + "_pt", &tc_pt_);
-  tree.Branch(prefix_ + "_mipPt", &tc_mipPt_);
-  tree.Branch(prefix_ + "_energy", &tc_energy_);
+  std::string bname;
+  auto withPrefix([&prefix, &bname](char const* vname)->char const* {
+      bname = prefix + "_" + vname;
+      return bname.c_str();
+    });
+
+  tree.Branch(withPrefix("n"), &tc_n_, (prefix + "_n/I").c_str());
+  tree.Branch(withPrefix("id"), &tc_id_);
+  tree.Branch(withPrefix("subdet"), &tc_subdet_);
+  tree.Branch(withPrefix("zside"), &tc_side_);
+  tree.Branch(withPrefix("layer"), &tc_layer_);
+  tree.Branch(withPrefix("wafer"), &tc_wafer_);
+  tree.Branch(withPrefix("wafertype"), &tc_wafertype_);
+  tree.Branch(withPrefix("cell"), &tc_cell_);
+  tree.Branch(withPrefix("data"), &tc_data_);
+  tree.Branch(withPrefix("uncompressedCharge"), &tc_uncompressedCharge_);
+  tree.Branch(withPrefix("compressedCharge"), &tc_compressedCharge_);
+  tree.Branch(withPrefix("pt"), &tc_pt_);
+  tree.Branch(withPrefix("mipPt"), &tc_mipPt_);
+  tree.Branch(withPrefix("energy"), &tc_energy_);
   if (fill_simenergy_)
-    tree.Branch(prefix_ + "_simenergy", &tc_simenergy_);
-  tree.Branch(prefix_ + "_eta", &tc_eta_);
-  tree.Branch(prefix_ + "_phi", &tc_phi_);
-  tree.Branch(prefix_ + "_x", &tc_x_);
-  tree.Branch(prefix_ + "_y", &tc_y_);
-  tree.Branch(prefix_ + "_z", &tc_z_);
-  tree.Branch(prefix_ + "_cluster_id", &tc_cluster_id_);
-  tree.Branch(prefix_ + "_multicluster_id", &tc_multicluster_id_);
-  tree.Branch(prefix_ + "_multicluster_pt", &tc_multicluster_pt_);
+    tree.Branch(withPrefix("simenergy"), &tc_simenergy_);
+  tree.Branch(withPrefix("eta"), &tc_eta_);
+  tree.Branch(withPrefix("phi"), &tc_phi_);
+  tree.Branch(withPrefix("x"), &tc_x_);
+  tree.Branch(withPrefix("y"), &tc_y_);
+  tree.Branch(withPrefix("z"), &tc_z_);
+  tree.Branch(withPrefix("cluster_id"), &tc_cluster_id_);
+  tree.Branch(withPrefix("multicluster_id"), &tc_multicluster_id_);
+  tree.Branch(withPrefix("multicluster_pt"), &tc_multicluster_pt_);
   if (fill_truthmap_)
-    tree.Branch(prefix_ + "_genparticle_index", &tc_genparticle_index_);
+    tree.Branch(withPrefix("genparticle_index"), &tc_genparticle_index_);
 
 }
 
@@ -167,7 +171,7 @@ fill(const edm::Event& e, const edm::EventSetup& es)
   if(fill_simenergy_) simhits(e, simhits_ee, simhits_fh, simhits_bh);
 
   edm::Handle<CaloToCellsMap> caloparticles_map_h;
-  std::map<uint32_t, unsigned> cell_to_genparticle;
+  std::unordered_map<uint32_t, unsigned> cell_to_genparticle;
   if (fill_truthmap_) {
     e.getByToken(caloparticles_map_token_, caloparticles_map_h);
     for (auto& keyval : *caloparticles_map_h) {

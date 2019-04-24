@@ -70,8 +70,9 @@ process.GlobalTag = GlobalTag(process.GlobalTag, 'auto:phase2_realistic', '')
 process.load('L1Trigger.L1THGCal.hgcalTriggerPrimitives_cff')
 
 # To add truth-matched calo cells and downstream objects
-process.load('L1Trigger.L1THGCalUtilities.caloTruthCells_cff')
-process.hgcalTriggerPrimitives += process.caloTruthCells
+#process.load('L1Trigger.L1THGCalUtilities.caloTruthCells_cff')
+#process.hgcalTriggerPrimitives += process.caloTruthCells
+#process.load('L1Trigger.L1THGCalUtilities.caloTruthCellsNtuples_cff')
 
 process.hgcl1tpg_step = cms.Path(process.hgcalTriggerPrimitives)
 # To test V9Imp2
