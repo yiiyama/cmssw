@@ -98,6 +98,20 @@ CaloTruthCellsProducer::produce(edm::Event& event, edm::EventSetup const& setup)
   std::unordered_map<uint32_t, double> hitToEnergy(makeHitMap(event, setup)); // cellId -> sim energy
   std::unordered_map<uint32_t, std::pair<double, double>> tcToEnergies; // tcId -> {total sim energy, fractioned sim energy}
 
+  for (auto& he : hitToEnergy) {
+    DetId hitId(he.first);
+    uint32_t tcId;
+    try {
+      tcId = geometry.getTriggerCellFromCell(hitId);
+    }
+    catch (cms::Exception const& ex) {
+      edm::LogError("CaloTruthCellsProducer") << ex.what();
+      continue;
+    }
+
+    tcToEnergies[tcId].first += he.second;
+  }
+
   // used later to order multiclusters
   std::map<int, CaloParticleRef> orderedCaloRefs;
 
@@ -122,10 +136,7 @@ CaloTruthCellsProducer::produce(edm::Event& event, edm::EventSetup const& setup)
         }
 
         tcToCalo.emplace(tcId, ref);
-
-        double cellE(hitToEnergy[hAndF.first]);
-        tcToEnergies[tcId].first += cellE;
-        tcToEnergies[tcId].second += cellE * hAndF.second;
+        tcToEnergies[tcId].second += hitToEnergy[hAndF.first] * hAndF.second;
       }
     }
 
