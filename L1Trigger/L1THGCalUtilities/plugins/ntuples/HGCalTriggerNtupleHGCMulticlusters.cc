@@ -3,41 +3,18 @@
 #include "L1Trigger/L1THGCal/interface/HGCalTriggerGeometryBase.h"
 #include "L1Trigger/L1THGCalUtilities/interface/HGCalTriggerNtupleBase.h"
 #include "L1Trigger/L1THGCal/interface/backend/HGCalTriggerClusterIdentificationBase.h"
-#include "RecoLocalCalo/HGCalRecAlgos/interface/RecHitTools.h"
 
-#include "FastSimulation/Event/interface/FSimEvent.h"
-#include "DataFormats/GeometrySurface/interface/Plane.h"
-#include "TrackingTools/TrajectoryParametrization/interface/CurvilinearTrajectoryError.h"
-#include "TrackPropagation/RungeKutta/interface/defaultRKPropagator.h"
-#include "MagneticField/Engine/interface/MagneticField.h"
-#include "MagneticField/Records/interface/IdealMagneticFieldRecord.h"
-
-// Taken from HGCalAnalysis
-class SimpleTrackPropagator {
-public:
-  SimpleTrackPropagator(MagneticField const&, double hgcalSurface);
-  bool propagate(math::XYZTLorentzVectorD const& momentum, math::XYZTLorentzVectorD const& position,
-                 float charge, math::XYZVectorD& coords) const;
-
-  double abszTarget() const { return abszTarget_; }
-
-private:
-  MagneticField const& field_;
-  Plane::PlanePointer targetPlaneForward_;
-  Plane::PlanePointer targetPlaneBackward_;
-  float abszTarget_;
-  CurvilinearTrajectoryError err_;
-  defaultRKPropagator::Product prod_;
-};
+#include "SimDataFormats/CaloHit/interface/PCaloHit.h"
+#include "SimDataFormats/Vertex/interface/SimVertex.h"
+#include "SimDataFormats/Track/interface/SimTrack.h"
 
 class HGCalTriggerNtupleHGCMulticlusters : public HGCalTriggerNtupleBase
 {
 
   public:
     HGCalTriggerNtupleHGCMulticlusters(const edm::ParameterSet& conf);
-    ~HGCalTriggerNtupleHGCMulticlusters() override { delete propagator_; }
+    ~HGCalTriggerNtupleHGCMulticlusters() override {}
     void initialize(TTree&, const edm::ParameterSet&, edm::ConsumesCollector&&) final;
-    void beginRun(const edm::Run& r, const edm::EventSetup& es) override;
     void fill(const edm::Event& e, const edm::EventSetup& es) final;
 
   private:
@@ -46,12 +23,13 @@ class HGCalTriggerNtupleHGCMulticlusters : public HGCalTriggerNtupleBase
     edm::EDGetToken multiclusters_token_;
     edm::EDGetToken simTracksToken_;
     edm::EDGetToken simVerticesToken_;
+    edm::EDGetToken simHitsTokenEE_;
+    edm::EDGetToken simHitsTokenHEfront_;
+    edm::EDGetToken simHitsTokenHEback_;
 
     std::unique_ptr<HGCalTriggerClusterIdentificationBase> id_;
 
     bool matchSimTrack_;
-    FSimEvent* fsimEvent_;
-    SimpleTrackPropagator* propagator_;
 
     int cl3d_n_ ;
     std::vector<uint32_t> cl3d_id_;
@@ -78,66 +56,18 @@ class HGCalTriggerNtupleHGCMulticlusters : public HGCalTriggerNtupleBase
     std::vector<float> cl3d_bdteg_;
     std::vector<int> cl3d_quality_;
 
-    std::vector<std::vector<int>> cl3d_simtracks_pid_;
-    std::vector<std::vector<float>> cl3d_simtracks_pt_;
-    std::vector<std::vector<float>> cl3d_simtracks_eta_;
-    std::vector<std::vector<float>> cl3d_simtracks_phi_;
+    std::vector<int> cl3d_simtrack_pid_;
+    std::vector<float> cl3d_simtrack_pt_;
+    std::vector<float> cl3d_simtrack_eta_;
+    std::vector<float> cl3d_simtrack_phi_;
 };
 
 DEFINE_EDM_PLUGIN(HGCalTriggerNtupleFactory,
     HGCalTriggerNtupleHGCMulticlusters,
     "HGCalTriggerNtupleHGCMulticlusters" );
 
-SimpleTrackPropagator::SimpleTrackPropagator(MagneticField const& _field, double _hgcalSurface) :
-  field_(_field),
-  targetPlaneForward_(Plane::build(Plane::PositionType(0, 0, std::abs(_hgcalSurface)), Plane::RotationType())),
-  targetPlaneBackward_(Plane::build(Plane::PositionType(0, 0, -std::abs(_hgcalSurface)), Plane::RotationType())),
-  abszTarget_(std::abs(_hgcalSurface)),
-  prod_(&_field, alongMomentum, 5.e-5)
-{
-  ROOT::Math::SMatrixIdentity id;
-  AlgebraicSymMatrix55 C(id);
-  C *= 0.001;
-  err_ = CurvilinearTrajectoryError(C);
-}
-
-bool
-SimpleTrackPropagator::propagate(math::XYZTLorentzVectorD const& _momentum,
-                                 math::XYZTLorentzVectorD const& _position,
-                                 float _charge,
-                                 math::XYZVectorD& _output) const
-{
-  double px(_momentum.px());
-  double py(_momentum.py());
-  double pz(_momentum.pz());
-  double x(_position.x());
-  double y(_position.y());
-  double z(_position.z());
-
-  typedef TrajectoryStateOnSurface TSOS;
-  GlobalPoint startingPosition(x, y, z);
-  GlobalVector startingMomentum(px, py, pz);
-  Plane::PlanePointer startingPlane(Plane::build(Plane::PositionType(x, y, z), Plane::RotationType()));
-
-  TSOS startingStateP(GlobalTrajectoryParameters(startingPosition, startingMomentum, _charge, &field_),
-                      err_,
-                      *startingPlane);
-
-  TSOS trackStateP(prod_.propagator.propagate(startingStateP, *(pz > 0 ? targetPlaneForward_ : targetPlaneBackward_)));
-
-  if (trackStateP.isValid()) {
-    auto&& gp(trackStateP.globalPosition());
-    _output.SetCoordinates(gp.x(), gp.y(), gp.z());
-    return true;
-  }
-
-  _output = math::XYZVectorD();
-  return false;
-}
-
-
 HGCalTriggerNtupleHGCMulticlusters::
-HGCalTriggerNtupleHGCMulticlusters(const edm::ParameterSet& conf):HGCalTriggerNtupleBase(conf), propagator_(nullptr)
+HGCalTriggerNtupleHGCMulticlusters(const edm::ParameterSet& conf):HGCalTriggerNtupleBase(conf)
 {
 }
 
@@ -185,33 +115,14 @@ initialize(TTree& tree, const edm::ParameterSet& conf, edm::ConsumesCollector&& 
   if (matchSimTrack_) {
     simTracksToken_ = collector.consumes<std::vector<SimTrack>>(conf.getParameter<edm::InputTag>("SimTracks"));
     simVerticesToken_ = collector.consumes<std::vector<SimVertex>>(conf.getParameter<edm::InputTag>("SimVertices"));
+    simHitsTokenEE_ = collector.consumes<std::vector<PCaloHit>>(conf.getParameter<edm::InputTag>("SimHitsEE"));
+    simHitsTokenHEfront_ = collector.consumes<std::vector<PCaloHit>>(conf.getParameter<edm::InputTag>("SimHitsHEfront"));
+    simHitsTokenHEback_ = collector.consumes<std::vector<PCaloHit>>(conf.getParameter<edm::InputTag>("SimHitsHEback"));
 
-    tree.Branch(withPrefix("simtracks_pid"), &cl3d_simtracks_pid_);
-    tree.Branch(withPrefix("simtracks_pt"), &cl3d_simtracks_pt_);
-    tree.Branch(withPrefix("simtracks_eta"), &cl3d_simtracks_eta_);
-    tree.Branch(withPrefix("simtracks_phi"), &cl3d_simtracks_phi_);
-
-    fsimEvent_ = new FSimEvent(conf.getUntrackedParameterSet("SimTrackFilter"));
-  }
-}
-
-void
-HGCalTriggerNtupleHGCMulticlusters::
-beginRun(const edm::Run&, const edm::EventSetup& es)
-{
-  if (matchSimTrack_) {
-    edm::ESHandle<HepPDT::ParticleDataTable> pdt;
-    es.getData(pdt);
-    fsimEvent_->initializePdt(&(*pdt));
-
-    edm::ESHandle<MagneticField> magfield;
-    es.get<IdealMagneticFieldRecord>().get(magfield);
-
-    hgcal::RecHitTools recHitTools;
-    recHitTools.getEventSetup(es);
-
-    delete propagator_;
-    propagator_ = new SimpleTrackPropagator(*magfield, recHitTools.getPositionLayer(1).z());
+    tree.Branch(withPrefix("simtrack_pid"), &cl3d_simtrack_pid_);
+    tree.Branch(withPrefix("simtrack_pt"), &cl3d_simtrack_pt_);
+    tree.Branch(withPrefix("simtrack_eta"), &cl3d_simtrack_eta_);
+    tree.Branch(withPrefix("simtrack_phi"), &cl3d_simtrack_phi_);
   }
 }
 
@@ -224,10 +135,6 @@ fill(const edm::Event& e, const edm::EventSetup& es)
   edm::Handle<l1t::HGCalMulticlusterBxCollection> multiclusters_h;
   e.getByToken(multiclusters_token_, multiclusters_h);
   const l1t::HGCalMulticlusterBxCollection& multiclusters = *multiclusters_h;
-
-  // retrieve geometry
-  edm::ESHandle<HGCalTriggerGeometryBase> geometry;
-  es.get<CaloGeometryRecord>().get(geometry);
 
   clear();
   for(auto cl3d_itr=multiclusters.begin(0); cl3d_itr!=multiclusters.end(0); cl3d_itr++)
@@ -264,44 +171,161 @@ fill(const edm::Event& e, const edm::EventSetup& es)
   }
 
   if (matchSimTrack_) {
-    // approximate bounds
-    double const outerRadius(160.);
-    double const innerRadius(25.);
+    auto haveOverlap([](std::set<uint32_t> set1, std::set<uint32_t> set2)->bool {
+        auto&& itr1(set1.begin());
+        auto&& itr2(set2.begin());
+        auto&& end1(set1.end());
+        auto&& end2(set2.end());
 
-    // vector of propagated positions and simtracks
-    std::vector<std::pair<math::XYZVectorD, FSimTrack const*>> positionsAndTracks;
+        while (itr1 != end1 && itr2 != end2) {
+          if (*itr1 < *itr2)
+            ++itr1;
+          else if (*itr2 < *itr1)
+            ++itr2;
+          else
+            return true;
+        }
+
+        return false;
+      });
+
+    cl3d_simtrack_pid_.resize(cl3d_n_);
+    cl3d_simtrack_pt_.resize(cl3d_n_);
+    cl3d_simtrack_eta_.resize(cl3d_n_);
+    cl3d_simtrack_phi_.resize(cl3d_n_);
+
+    // loop over the hits, fill simTrackToHits map
+    // loop over 3D clusters, collect matching tracks
+    // trace the track to parent
+
+    // retrieve geometry
+    edm::ESHandle<HGCalTriggerGeometryBase> geometryHandle;
+    es.get<CaloGeometryRecord>().get(geometryHandle);
+    auto& geometry(*geometryHandle);
 
     edm::Handle<std::vector<SimTrack>> simTracksHandle;
     e.getByToken(simTracksToken_, simTracksHandle);
     auto const& simTracks(*simTracksHandle);
 
+    std::unordered_map<int, SimTrack const*> tracks;
+    for (auto& track : simTracks)
+      tracks.emplace(track.trackId(), &track);
+
     edm::Handle<std::vector<SimVertex>> simVerticesHandle;
     e.getByToken(simVerticesToken_, simVerticesHandle);
     auto const& simVertices(*simVerticesHandle);
 
-    fsimEvent_->fill(simTracks, simVertices);
+    std::unordered_map<int, SimVertex const*> vertices;
+    for (auto& vertex : simVertices)
+      vertices.emplace(vertex.vertexId(), &vertex);
 
-    for (unsigned iT(0); iT != fsimEvent_->nTracks(); ++iT) {
-      auto const& track(fsimEvent_->track(iT));
+    std::unordered_map<int, std::set<uint32_t>> simTrackToCells;
 
-      // skip tracks that start after HGCal
-      if (std::abs(track.vertex().position().z()) > propagator_->abszTarget())
-        continue;
+    for (auto* token : {&simHitsTokenEE_, &simHitsTokenHEfront_, &simHitsTokenHEback_}) {
+      edm::Handle<std::vector<PCaloHit>> handle;
+      e.getByToken(*token, handle);
+      auto const& simhits(*handle);
 
-      // skip tracks that end before HGCal
-      if (!track.noEndVertex() && std::abs(track.endVertex().position().z()) < propagator_->abszTarget())
-        continue;
+      for (auto const& simhit : simhits) {
+        uint32_t tcId;
+        try {
+          tcId = geometry.getTriggerCellFromCell(simhit.id());
+        }
+        catch (cms::Exception const& ex) {
+          edm::LogError("CaloTruthCellsProducer") << ex.what();
+          continue;
+        }
 
-      math::XYZVectorD positionOnSurface;
-      if (!propagator_->propagate(track.momentum(), track.vertex().position(), track.charge(), positionOnSurface))
-        continue;
-
-      double rho(positionOnSurface.Rho());
-      if (rho < outerRadius && rho > innerRadius)
-        positionsAndTracks.emplace_back(positionOnSurface, &track);
+        simTrackToCells[simhit.geantTrackId()].insert(tcId);
+      }
     }
 
-    // now match the tracks to clusters
+    unsigned icl(0);
+    for(auto cl3d_itr=multiclusters.begin(0); cl3d_itr!=multiclusters.end(0); ++cl3d_itr, ++icl) {
+      std::set<uint32_t> cellIds;
+
+      for (auto&& clItr(cl3d_itr->constituents_begin()); clItr != cl3d_itr->constituents_end(); ++clItr) {
+        auto const& cluster(*clItr->second);
+        for (auto&& cellItr(cluster.constituents_begin()); cellItr != cluster.constituents_end(); ++cellItr)
+          cellIds.insert(cellItr->first);
+      }
+
+      std::vector<int> trackIds;
+
+      for (auto&& th : simTrackToCells) {
+        if (haveOverlap(cellIds, th.second))
+          trackIds.push_back(th.first);
+      }
+
+      if (trackIds.size() == 0) {
+        cl3d_simtrack_pid_[icl] = 0;
+        cl3d_simtrack_pt_[icl] = 0.;
+        cl3d_simtrack_eta_[icl] = 0.;
+        cl3d_simtrack_phi_[icl] = 0.;
+      }
+      else if (trackIds.size() == 1) {
+        auto& track(*tracks[trackIds[0]]);
+        cl3d_simtrack_pid_[icl] = track.type();
+        auto& momentum(track.momentum());
+        cl3d_simtrack_pt_[icl] = momentum.pt();
+        cl3d_simtrack_eta_[icl] = momentum.eta();
+        cl3d_simtrack_phi_[icl] = momentum.phi();
+      }
+      else {
+        std::vector<std::vector<int>> histories(trackIds.size());
+
+        for (unsigned iT(0); iT != trackIds.size(); ++iT) {
+          auto* track(tracks[trackIds[iT]]);
+          while (!track->noVertex()) {
+            auto& vertex(*vertices[track->vertIndex()]);
+            if (vertex.noParent())
+              break;
+
+            histories[iT].push_back(vertex.parentIndex());
+            track = tracks[vertex.parentIndex()];
+          }
+        }
+
+        unsigned iHist(1);
+        int ancestor(-1);
+        while (true) {
+          if (histories[0].size() < iHist)
+            break;
+
+          int candidate(histories[0][histories[0].size() - iHist]);
+
+          unsigned iT(1);
+          for (; iT != histories.size(); ++iT) {
+            if (histories[iT].size() < iHist)
+              break;
+
+            if (histories[iT][histories[iT].size() - iHist] != candidate)
+              break;
+          }
+          if (iT == histories.size()) {
+            ancestor = candidate;
+            ++iHist;
+          }
+          else
+            break;
+        }
+
+        if (ancestor == -1) {
+          cl3d_simtrack_pid_[icl] = 0;
+          cl3d_simtrack_pt_[icl] = 0.;
+          cl3d_simtrack_eta_[icl] = 0.;
+          cl3d_simtrack_phi_[icl] = 0.;
+        }
+        else {
+          auto& track(*tracks[ancestor]);
+          cl3d_simtrack_pid_[icl] = track.type();
+          auto& momentum(track.momentum());
+          cl3d_simtrack_pt_[icl] = momentum.pt();
+          cl3d_simtrack_eta_[icl] = momentum.eta();
+          cl3d_simtrack_phi_[icl] = momentum.phi();
+        }
+      }
+    }
   }
 }
 
@@ -334,12 +358,8 @@ clear()
   cl3d_bdteg_.clear();
   cl3d_quality_.clear();
 
-  cl3d_simtracks_pid_.clear();
-  cl3d_simtracks_pt_.clear();
-  cl3d_simtracks_eta_.clear();
-  cl3d_simtracks_phi_.clear();
+  cl3d_simtrack_pid_.clear();
+  cl3d_simtrack_pt_.clear();
+  cl3d_simtrack_eta_.clear();
+  cl3d_simtrack_phi_.clear();
 }
-
-
-
-
