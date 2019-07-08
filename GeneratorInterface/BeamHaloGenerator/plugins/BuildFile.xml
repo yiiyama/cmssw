@@ -1,0 +1,4 @@
+<use name="GeneratorInterface/BeamHaloGenerator"/>
+<library file="BeamHaloProducer.cc" name="GeneratorInterfaceBeamHaloGeneratorPlugins">
+   <flags EDM_PLUGIN="1"/>
+</library>
