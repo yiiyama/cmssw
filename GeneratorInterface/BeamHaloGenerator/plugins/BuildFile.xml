@@ -1,0 +1,7 @@
+<use   name="FWCore/Framework"/>
+<use   name="FWCore/ParameterSet"/>
+<use   name="SimDataFormats/GeneratorProducts"/>
+<use   name="GeneratorInterface/BeamHaloGenerator"/>
+<library file="BeamHaloProducer.cc" name="GeneratorInterfaceBeamHaloGeneratorPlugins">
+   <flags EDM_PLUGIN="1"/>
+</library>
