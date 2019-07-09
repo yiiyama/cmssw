@@ -107,8 +107,8 @@ BeamHaloProducer::BeamHaloProducer(edm::ParameterSet const& pset) :
 
   produces<edm::HepMCProduct>("unsmeared");
   produces<GenEventInfoProduct>();
-  produces<GenRunInfoProduct, edm::InRun>();
-  produces<std::vector<double>, edm::InRun>("prates");
+  produces<GenRunInfoProduct, edm::Transition::EndRun>();
+  produces<std::vector<double>, edm::Transition::EndRun>("prates");
 
   usesResource("BeamHaloProducer");
 }
