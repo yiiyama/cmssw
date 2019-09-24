@@ -227,6 +227,9 @@ fill(const edm::Event& e, const edm::EventSetup& es)
       auto const& simhits(*handle);
 
       for (auto const& simhit : simhits) {
+        if (simhit.geantTrackId() <= 0)
+          continue;
+
         uint32_t tcId;
         try {
           tcId = geometry.getTriggerCellFromCell(simhit.id());
@@ -275,14 +278,22 @@ fill(const edm::Event& e, const edm::EventSetup& es)
         std::vector<std::vector<int>> histories(trackIds.size());
 
         for (unsigned iT(0); iT != trackIds.size(); ++iT) {
-          auto* track(tracks[trackIds[iT]]);
+          auto tItr(tracks.find(trackIds[iT]));
+          if (tItr == tracks.end())
+            continue;
+          
+          auto const* track(tItr->second);
           while (!track->noVertex()) {
             auto& vertex(*vertices[track->vertIndex()]);
             if (vertex.noParent())
               break;
 
             histories[iT].push_back(vertex.parentIndex());
-            track = tracks[vertex.parentIndex()];
+            tItr = tracks.find(vertex.parentIndex());
+            if (tItr == tracks.end())
+              break;
+            
+            track = tItr->second;
           }
         }
 

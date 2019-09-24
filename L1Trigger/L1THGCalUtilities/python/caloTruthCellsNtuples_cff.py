@@ -9,13 +9,13 @@ ntuple_multiclusters_fulltruth = ntuple_multiclusters.clone(
 )
 hgcalTriggerNtuplizer.Ntuples.append(ntuple_multiclusters_fulltruth)
 
+ntuple_triggercells.caloParticlesToCells = cms.InputTag('caloTruthCellsProducer')
+ntuple_triggercells.FillTruthMap = cms.bool(True)
+
 # If caloTruthCellsProducer.makeCellsCollection is True, can run the clustering algorithm over output cells too
 
 if caloTruthCellsProducer.makeCellsCollection:
     ## ntuplize clusters and towers
-
-    ntuple_triggercells.caloParticlesToCells = cms.InputTag('caloTruthCellsProducer')
-    ntuple_triggercells.FillTruthMap = cms.bool(True)
     
     ntuple_triggercells_truth = ntuple_triggercells.clone(
         TriggerCells = cms.InputTag('caloTruthCellsProducer'),
